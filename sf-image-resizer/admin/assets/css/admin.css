@@ -1,0 +1,39 @@
+.sfir-wrap .sfir-stats {
+	max-width: 780px;
+	margin-bottom: 1em;
+}
+
+.sfir-wrap .sfir-stats th {
+	width: 220px;
+}
+
+.sfir-wrap .sfir-form {
+	margin: 0 0 2em;
+}
+
+.sfir-wrap .sfir-log {
+	width: 100%;
+	max-width: 980px;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+	background: #fff;
+}
+
+.sfir-wrap .sfir-code {
+	max-width: 980px;
+	padding: 12px;
+	overflow-x: auto;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+}
+
+.sfir-wrap table.widefat {
+	max-width: 980px;
+	margin-bottom: 1em;
+}
+
+.sfir-wrap .sfir-notes {
+	max-width: 980px;
+	list-style: disc;
+	padding-left: 1.4em;
+}

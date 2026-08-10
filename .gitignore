@@ -1,0 +1,8 @@
+/vendor/
+/composer.lock
+/node_modules/
+/sf-image-resizer.zip
+/.phpunit.result.cache
+/phpcs.xml
+/phpunit.xml
+.DS_Store
