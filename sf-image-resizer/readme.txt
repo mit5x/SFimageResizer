@@ -4,7 +4,7 @@ Tags: images, resize, thumbnails, webp, performance
 Requires at least: 7.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -105,17 +105,37 @@ No. The same plain URL is returned every time, whether the file exists yet or
 not.
 
 = What if my server does not pass missing files to WordPress? =
-Settings -> SFimageResizer runs a configuration check and tells you. Almost
-every host works out of the box: Apache is covered by the .htaccess the plugin
-writes, and the usual nginx configuration already ends in
-`try_files $uri $uri/ /index.php?$args`. If the check reports a problem, it
-shows the exact nginx location block to add.
+Almost every host works out of the box: Apache is covered by the .htaccess the
+plugin writes, and the usual nginx configuration already ends in
+`try_files $uri $uri/ /index.php?$args`.
+
+Settings -> SFimageResizer shows a configuration check. It reports success as
+soon as the plugin has really generated and served an image, and on a fresh
+installation it asks your own browser to load a test URL. Until one of those
+happens it says so plainly rather than claiming something is broken, because a
+site cannot reliably test itself: hosting bot protection answers server side
+requests with a challenge page even when everything is fine.
+
+The most reliable test is the obvious one: open the URL of a size that has not
+been generated yet in your browser. If the image appears, it works. If it does
+not, the check offers the nginx location block to add.
 
 == Screenshots ==
 
 1. The plugin screen: cache statistics, maintenance buttons and documentation.
 
 == Changelog ==
+
+= 1.1.1 =
+* The configuration check no longer calls the site from the server. That
+  loopback request was answered with a challenge page by hosts that run bot
+  protection, which made the check report a problem on sites where everything
+  worked.
+* The check now trusts, in order: an image the plugin has really generated and
+  served, then a test request made by the administrator's own browser, and
+  otherwise says that it could not confirm anything yet instead of warning.
+* The nginx snippet and the Apache note moved into a collapsed block, shown
+  only while nothing has been confirmed.
 
 = 1.1.0 =
 * `sf_img()` now always returns the plain URL of the cached file, from the
@@ -132,6 +152,9 @@ shows the exact nginx location block to add.
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+Fixes a false warning in the configuration check on hosts with bot protection.
 
 = 1.1.0 =
 Image URLs are now plain cache URLs from the first render. Existing cached

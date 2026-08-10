@@ -8,14 +8,33 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Verifies that a request for a missing cache file reaches this plugin.
+ * Finds out whether requests for missing cache files reach this plugin.
  *
- * Cache URLs point straight at the file. When the file is not there yet, the
- * web server has to fall through to WordPress; that is the default everywhere,
- * but a few hosts answer their own 404 instead. This class finds out which of
- * the two happens on the current server.
+ * The question is only ever answered by the network path real visitors use, so
+ * the check works on three levels, in descending order of certainty:
+ *
+ * 1. Whenever the request handler actually generates and serves a copy, it
+ *    records that fact. Nothing beats having done the real thing.
+ * 2. On a fresh installation the plugin screen asks the administrator's own
+ *    browser to fetch a signed, deliberately missing cache URL.
+ * 3. If neither happened yet, the screen says so plainly instead of claiming
+ *    that something is broken.
+ *
+ * A server side loopback request is deliberately not used: bot protection,
+ * split horizon DNS and CDNs make a site calling itself prove nothing about
+ * what a browser experiences.
  */
 class SFIR_Diagnostics {
+
+	/**
+	 * Option holding the timestamp of the last confirmation.
+	 */
+	const CONFIRMED_OPTION = 'sfir_pretty_urls_confirmed';
+
+	/**
+	 * Nonce action and name of the confirmation request.
+	 */
+	const AJAX_ACTION = 'sfir_confirm_pretty_urls';
 
 	/**
 	 * Relative path, inside the plugin directory in uploads, of the probe image.
@@ -23,139 +42,153 @@ class SFIR_Diagnostics {
 	const PROBE_PATH = 'selftest/probe.png';
 
 	/**
-	 * How long a result stays valid.
+	 * Shortest interval between two writes of the confirmation option.
 	 */
-	const TTL = 43200;
+	const CONFIRM_INTERVAL = DAY_IN_SECONDS;
 
 	/**
-	 * Transient holding the outcome of the check.
-	 */
-	const TRANSIENT = 'sfir_self_test';
-
-	/**
-	 * Returns the stored result, running the check when there is none.
+	 * Registers the confirmation endpoint.
 	 *
-	 * @return array See run().
+	 * @return void
 	 */
-	public static function get_cached() {
-		$cached = get_transient( self::TRANSIENT );
+	public static function init() {
+		add_action( 'wp_ajax_' . self::AJAX_ACTION, array( __CLASS__, 'handle_ajax' ) );
+	}
 
-		if ( is_array( $cached ) && isset( $cached['ok'], $cached['message'], $cached['url'] ) ) {
-			return $cached;
+	/**
+	 * Returns the moment pretty URLs were last confirmed.
+	 *
+	 * @return int Unix timestamp, or 0 when there is no confirmation yet.
+	 */
+	public static function get_confirmed_at() {
+		return (int) get_option( self::CONFIRMED_OPTION, 0 );
+	}
+
+	/**
+	 * Records that a cache file was really generated and served.
+	 *
+	 * Called from the request handler, so the write is throttled to once a day:
+	 * the fact does not become truer by being stored on every image.
+	 *
+	 * @param bool $force Write even when the stored value is still recent.
+	 * @return void
+	 */
+	public static function confirm( $force = false ) {
+		$now  = time();
+		$last = self::get_confirmed_at();
+
+		if ( ! $force && $last > 0 && ( $now - $last ) < self::CONFIRM_INTERVAL ) {
+			return;
 		}
 
-		return self::run();
+		update_option( self::CONFIRMED_OPTION, $now, false );
 	}
 
 	/**
-	 * Runs the check and stores the result.
+	 * Forgets the confirmation, so the browser check runs again.
 	 *
-	 * @return array {
-	 *     Outcome of the check.
-	 *
-	 *     @type bool   $ok      Whether missing cache files reach the plugin.
-	 *     @type string $message Human readable explanation.
-	 *     @type string $url     The URL that was requested.
-	 * }
+	 * @return void
 	 */
-	public static function run() {
-		$result = self::probe();
-
-		set_transient( self::TRANSIENT, $result, self::TTL );
-
-		return $result;
+	public static function reset() {
+		delete_option( self::CONFIRMED_OPTION );
 	}
 
 	/**
-	 * Performs the actual request.
+	 * Builds a signed cache URL that is certain not to exist yet.
 	 *
-	 * @return array See run().
+	 * @return string URL, or an empty string when the probe image is unavailable.
 	 */
-	protected static function probe() {
+	public static function get_probe_url() {
 		$source = self::ensure_probe_image();
 
 		if ( '' === $source ) {
-			return self::result( false, __( 'The check could not create its test image in the uploads directory.', 'sf-image-resizer' ), '' );
+			return '';
 		}
-
-		// A width nothing else would ask for, so the file is certain to be missing.
-		$params = SFIR_Core::apply_format_support( SFIR_Core::parse_params( 'w=' . wp_rand( 3000, 4999 ) . '&q=61' ) );
 
 		$resolved = SFIR_Core::resolve_path( $source );
 
 		if ( empty( $resolved['ok'] ) ) {
-			return self::result( false, __( 'The check could not read back its own test image.', 'sf-image-resizer' ), '' );
+			return '';
 		}
+
+		// A different width every time, so the cache always misses.
+		$params = SFIR_Core::apply_format_support( SFIR_Core::parse_params( 'w=' . wp_rand( 1000, 4999 ) . '&q=61' ) );
 
 		$hash         = SFIR_Security::short_hash( SFIR_Core::signature_payload( $resolved['key'], $params ) );
 		$relative_dir = SFIR_Core::cache_relative_dir( $resolved );
 		$filename     = SFIR_Core::build_cache_filename( basename( $resolved['relative'] ), $params, $hash );
-		$url          = SFIR_Cache::get_file_url( $relative_dir, $filename );
-		$path         = SFIR_Cache::get_file_path( $relative_dir, $filename );
 
-		clearstatcache( true, $path );
+		return SFIR_Cache::get_file_url( $relative_dir, $filename );
+	}
 
-		if ( file_exists( $path ) ) {
-			SFIR_Cache::delete_file( $path );
+	/**
+	 * Handles the confirmation sent by the browser check.
+	 *
+	 * @return void
+	 */
+	public static function handle_ajax() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => __( 'You are not allowed to do this.', 'sf-image-resizer' ) ), 403 );
 		}
 
-		$response = wp_remote_get(
-			$url,
+		check_ajax_referer( self::AJAX_ACTION );
+
+		self::confirm( true );
+		self::cleanup_probe_files();
+
+		wp_send_json_success(
 			array(
-				'timeout'   => 15,
-				'sslverify' => false,
-				'headers'   => array( 'Cache-Control' => 'no-cache' ),
+				'message' => __( 'Pretty URLs are working — checked from your browser just now.', 'sf-image-resizer' ),
 			)
 		);
+	}
 
-		if ( is_wp_error( $response ) ) {
-			return self::result(
-				false,
-				sprintf(
-					/* translators: %s: error message returned by the HTTP request. */
-					__( 'The site could not call itself over HTTP: %s. This often means loopback requests are blocked, which does not prove that pretty URLs are broken.', 'sf-image-resizer' ),
-					$response->get_error_message()
-				),
-				$url
-			);
+	/**
+	 * Returns the directory holding the cache files of the browser check.
+	 *
+	 * @return string Absolute path without trailing slash, empty on failure.
+	 */
+	public static function get_probe_cache_dir() {
+		$root = SFIR_Cache::get_cache_dir();
+
+		if ( '' === $root ) {
+			return '';
 		}
 
-		$status = (int) wp_remote_retrieve_response_code( $response );
-		$type   = (string) wp_remote_retrieve_header( $response, 'content-type' );
-		$marker = (string) wp_remote_retrieve_header( $response, 'x-sfir' );
+		return $root . '/' . SFIR_Cache::BASE_DIRNAME . '/' . dirname( self::PROBE_PATH );
+	}
 
-		// The file was written by the process that answered the request above,
-		// so this one still has the "missing" result in its stat cache.
-		clearstatcache( true, $path );
+	/**
+	 * Removes the cache files the browser check produced.
+	 *
+	 * @return int Number of deleted files.
+	 */
+	public static function cleanup_probe_files() {
+		$directory = self::get_probe_cache_dir();
 
-		$created = file_exists( $path );
-
-		if ( $created ) {
-			SFIR_Cache::delete_file( $path );
+		if ( '' === $directory || ! is_dir( $directory ) ) {
+			return 0;
 		}
 
-		if ( 200 === $status && 'generated' === $marker && 0 === strpos( $type, 'image/' ) && $created ) {
-			return self::result( true, __( 'A missing cache file was requested and the plugin generated it.', 'sf-image-resizer' ), $url );
+		$entries = @scandir( $directory ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		if ( ! is_array( $entries ) ) {
+			return 0;
 		}
 
-		if ( 404 === $status ) {
-			return self::result( false, __( 'The server answered 404 for a missing cache file instead of passing the request to WordPress.', 'sf-image-resizer' ), $url );
+		$deleted = 0;
+
+		foreach ( $entries as $entry ) {
+			if ( '.' === $entry || '..' === $entry || 'index.php' === $entry || '.htaccess' === $entry ) {
+				continue;
+			}
+
+			if ( SFIR_Cache::delete_file( $directory . '/' . $entry ) ) {
+				++$deleted;
+			}
 		}
 
-		if ( 0 === strpos( $type, 'text/html' ) ) {
-			return self::result( false, __( 'The server answered with an HTML page instead of an image, so the request never reached the plugin.', 'sf-image-resizer' ), $url );
-		}
-
-		return self::result(
-			false,
-			sprintf(
-				/* translators: 1: HTTP status code, 2: content type of the response. */
-				__( 'Unexpected answer for a missing cache file: HTTP %1$d, content type %2$s.', 'sf-image-resizer' ),
-				$status,
-				'' === $type ? '-' : $type
-			),
-			$url
-		);
+		return $deleted;
 	}
 
 	/**
@@ -163,7 +196,7 @@ class SFIR_Diagnostics {
 	 *
 	 * @return string Absolute path, or an empty string on failure.
 	 */
-	protected static function ensure_probe_image() {
+	public static function ensure_probe_image() {
 		$base = SFIR_Cache::get_base_dir();
 
 		if ( '' === $base ) {
@@ -180,32 +213,22 @@ class SFIR_Diagnostics {
 			return '';
 		}
 
-		$image = imagecreatetruecolor( 64, 64 );
+		$image = imagecreatetruecolor( 16, 16 );
 
 		if ( ! $image ) {
 			return '';
 		}
 
-		imagefilledrectangle( $image, 0, 0, 63, 63, imagecolorallocate( $image, 120, 140, 160 ) );
+		imagefilledrectangle( $image, 0, 0, 15, 15, imagecolorallocate( $image, 120, 140, 160 ) );
 		$written = @imagepng( $image, $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		imagedestroy( $image );
 
-		return $written ? $path : '';
-	}
+		if ( ! $written ) {
+			return '';
+		}
 
-	/**
-	 * Shapes a result array.
-	 *
-	 * @param bool   $ok      Whether the check succeeded.
-	 * @param string $message Explanation.
-	 * @param string $url     URL that was requested.
-	 * @return array
-	 */
-	protected static function result( $ok, $message, $url ) {
-		return array(
-			'ok'      => (bool) $ok,
-			'message' => $message,
-			'url'     => $url,
-		);
+		@chmod( $path, defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+
+		return $path;
 	}
 }

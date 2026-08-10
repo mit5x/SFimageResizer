@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Plugin version | 1.1.0 |
+| Plugin version | 1.1.1 |
 | WordPress used for testing | 7.0.3 (current stable branch at the time of writing) |
 | `Requires at least` / `Tested up to` | 7.0 |
 | `Requires PHP` | 7.4 (the minimum WordPress 7.0 itself requires) |
@@ -18,7 +18,7 @@
 |---|---:|---:|---:|
 | 11.1 Standalone unit tests (PHPUnit, no WordPress) | 47 tests / 261 assertions | 47 | 0 |
 | 11.2 Integration suite (`run.php`) | 120 | 120 | 0 |
-| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 57 | 57 | 0 |
+| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 86 | 86 | 0 |
 | 11.2.12 WebP fallback (`webp-fallback.php`) | 8 | 8 | 0 |
 | 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 26 | 26 | 0 |
 | PHPCS with the `WordPress` ruleset + `PHPCompatibilityWP` | — | 0 errors, 0 warnings | 0 |
@@ -88,7 +88,11 @@ attachment-ID path is exercised.
 | 11.2.10 Clear cache: with and without nonce | `11.2.10 clear cache` | 7 | pass |
 | 11.2.10 Log viewer, escaping, clear log with and without nonce | `11.2.10 log viewer` | 12 | pass |
 | 11.2.10 Documentation and local-only assets | `11.2.10 documentation and assets` | 14 | pass |
-| — Configuration self-check, nonce-protected re-run | `11.2 configuration self-check` | 10 | pass |
+| — Self-check level 1: real traffic records the confirmation, throttled | `self-check level 1: real traffic` | 8 | pass |
+| — Self-check level 1: the screen shows it and warns about nothing | `self-check level 1: what the screen shows` | 7 | pass |
+| — Self-check level 2: the browser probe and its collapsed hints | `self-check level 2: the browser probe` | 11 | pass |
+| — Self-check: the confirmation endpoint, capability and nonce | `self-check: the confirmation endpoint` | 10 | pass |
+| — Self-check: "check again" resets the confirmation | `self-check: reset` | 5 | pass |
 | — Directory protection files and no directory listing | `directory protection` | 7 | pass |
 | 11.2.11 Log rotation past 2 MB | `11.2.11 log rotation` | 6 | pass |
 | 11.2.12 WebP fallback with `imagewebp()` disabled | `11.2.12 webp fallback` | 8 | pass |
@@ -109,6 +113,19 @@ attachment-ID path is exercised.
   hash yields 403, an `E04` placeholder, a log line and no file on disk. A name
   with the hash removed is refused too, and `..%2f` inside the mirrored tree is
   refused without creating anything.
+* **The configuration self-check (1.1.1).** There is no server side loopback
+  request any more: hosts that run bot protection answer one with a challenge
+  page, which made the old check report a fault on sites where everything
+  worked. Three levels are tested instead. Level 1: a normal front end request
+  that generates an image sets `sfir_pretty_urls_confirmed`, a second
+  generation the same day does not rewrite it, and a value older than a day
+  does. Level 2: with the option cleared, the screen hands the browser a signed
+  cache URL, a different one on each render, and fetching it really returns an
+  image. The confirmation endpoint refuses a request with no nonce and one from
+  a subscriber, accepts a signed one from an administrator, and cleans up the
+  probe files. "Check again" clears the option. Level 3: without a confirmation
+  the screen says so without claiming a fault, and the nginx snippet and the
+  Apache note appear only there, inside a collapsed block.
 * **Source lookup.** A cache name only carries a sanitised stem, so the handler
   probes the usual extensions in the mirrored source directory and falls back to
   a directory scan; the HMAC decides which candidate is the right one, so an

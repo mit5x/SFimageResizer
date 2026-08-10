@@ -386,6 +386,10 @@ class SFIR_Endpoint {
 				return;
 			}
 
+			// Reaching this point proves that requests for missing cache files
+			// arrive here, which is exactly what the admin screen wants to know.
+			SFIR_Diagnostics::confirm();
+
 			self::serve_file( $cache_path, self::mime_for_format( $params['f'] ), true );
 			return;
 		}
@@ -402,6 +406,7 @@ class SFIR_Endpoint {
 			clearstatcache( true, $cache_path );
 
 			if ( SFIR_Cache::is_fresh( $cache_path, $resolved['path'] ) ) {
+				SFIR_Diagnostics::confirm();
 				self::serve_file( $cache_path, self::mime_for_format( $params['f'] ), true );
 				return;
 			}

@@ -3,7 +3,7 @@
  * Plugin Name:       SFimageResizer
  * Plugin URI:        https://web-format.net
  * Description:       On-demand image resizing, cropping and WebP/JPG conversion for theme developers, straight from PHP templates, with automatic disk caching.
- * Version:           1.1.0
+ * Version:           1.1.1
  * Requires at least: 7.0
  * Requires PHP:      7.4
  * Author:            saytformat
@@ -21,7 +21,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Plugin version.
  */
-define( 'SFIR_VERSION', '1.1.0' );
+define( 'SFIR_VERSION', '1.1.1' );
 
 /**
  * Absolute path to the main plugin file.
@@ -72,6 +72,7 @@ function sfir_bootstrap() {
 
 	if ( is_admin() ) {
 		SFIR_Admin::init();
+		SFIR_Diagnostics::init();
 		add_action( 'admin_init', 'sfir_maybe_upgrade' );
 	}
 }
@@ -92,7 +93,7 @@ function sfir_maybe_upgrade() {
 	}
 
 	SFIR_Cache::prepare_directories( true );
-	delete_transient( SFIR_Diagnostics::TRANSIENT );
+	SFIR_Diagnostics::ensure_probe_image();
 
 	// Drops the rewrite rule of the retired sfir-generate endpoint.
 	flush_rewrite_rules();
@@ -108,17 +109,22 @@ function sfir_maybe_upgrade() {
 function sfir_activate() {
 	SFIR_Security::get_secret();
 	SFIR_Cache::prepare_directories( true );
+	SFIR_Diagnostics::ensure_probe_image();
 	update_option( SFIR_VERSION_OPTION, SFIR_VERSION, true );
 	flush_rewrite_rules();
 }
 register_activation_hook( __FILE__, 'sfir_activate' );
 
 /**
- * Runs on plugin deactivation. Removes nothing; only rewrite rules are flushed.
+ * Runs on plugin deactivation. Keeps the cache, the log and the settings; only
+ * the "pretty URLs confirmed" marker and the rewrite rules are dropped.
  *
  * @return void
  */
 function sfir_deactivate() {
+	// The next activation may land on a different server, so the confirmation
+	// that pretty URLs work has to be earned again.
+	SFIR_Diagnostics::reset();
 	flush_rewrite_rules();
 }
 register_deactivation_hook( __FILE__, 'sfir_deactivate' );

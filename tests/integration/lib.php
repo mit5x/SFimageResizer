@@ -325,6 +325,40 @@ function sfir_corrupt_hash( $url ) {
 }
 
 /**
+ * Drops the option cache of this PHP process.
+ *
+ * A page load is a fresh process, so it always sees what other requests wrote.
+ * The suite runs many "page loads" inside one process, where WordPress would
+ * otherwise keep serving the values, and the misses, it cached earlier.
+ *
+ * @return void
+ */
+function sfir_forget_options() {
+	wp_cache_delete( 'notoptions', 'options' );
+	wp_cache_delete( 'alloptions', 'options' );
+
+	foreach ( func_get_args() as $option ) {
+		wp_cache_delete( $option, 'options' );
+	}
+}
+
+/**
+ * Reads the settings wp_localize_script() printed for the admin script.
+ *
+ * @param string $html Page markup.
+ * @return array
+ */
+function sfir_admin_settings( $html ) {
+	if ( ! preg_match( '#var sfirAdmin = (\{.*?\});#s', $html, $matches ) ) {
+		return array();
+	}
+
+	$decoded = json_decode( $matches[1], true );
+
+	return is_array( $decoded ) ? $decoded : array();
+}
+
+/**
  * Returns the six character hash carried by a cache URL.
  *
  * @param string $url Cache URL.
