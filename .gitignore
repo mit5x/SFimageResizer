@@ -1,0 +1,12 @@
+/vendor/
+/node_modules/
+
+# Release archives are never committed: they are built by
+# .github/workflows/release.yml and attached to the GitHub Release.
+/download/
+/sf-image-resizer*.zip
+/SFimageResizer*.zip
+/.phpunit.result.cache
+/phpcs.xml
+/phpunit.xml
+.DS_Store
