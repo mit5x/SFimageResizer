@@ -12,6 +12,9 @@ plain static URL from then on.
      alt="" loading="lazy" />
 ```
 
+* **Download:** the installable zip is attached to each
+  [GitHub Release](../../releases/latest); it is deliberately not committed to
+  the repository.
 * **Plugin:** `sf-image-resizer/` — this is the only directory that ships.
 * **User documentation:** `sf-image-resizer/readme.txt`, and the built-in
   documentation on *Settings → SFimageResizer*.
@@ -34,8 +37,11 @@ plain static URL from then on.
 │   ├── unit/                PHPUnit tests for the pure logic
 │   ├── integration/         suites driven through WP-CLI and HTTP
 │   └── run-tests.sh         runs everything
+├── .github/workflows/     CI on every push, release on every vX.Y.Z tag
+├── composer.json          dev tooling only; the plugin has no dependencies
 ├── phpunit.xml.dist
 ├── phpcs.xml.dist
+├── CLAUDE.md              conventions every change has to follow
 ├── TEST-REPORT.md
 └── BUILD.md
 ```
@@ -61,10 +67,19 @@ plain static URL from then on.
 See section 6 of `TEST-REPORT.md`. In short:
 
 ```bash
-vendor/bin/phpunit                                   # pure logic, no WordPress
-vendor/bin/phpcs --standard=phpcs.xml.dist           # WordPress Coding Standards
+composer install
+composer run test                                    # pure logic, no WordPress
+composer run lint                                    # WordPress Coding Standards
 SFIR_WP_DIR=... SFIR_BASE_URL=... bash tests/run-tests.sh   # everything
 ```
+
+CI runs the same checks on PHP 7.4 and 8.4, plus the full WordPress
+integration suite and Plugin Check.
+
+## Releasing
+
+Bump the version, push, then push a `vX.Y.Z` tag; the release workflow builds
+the archive and publishes it. See `BUILD.md`.
 
 ## License
 
