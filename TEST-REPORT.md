@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Plugin version | 1.0.0 |
+| Plugin version | 1.1.0 |
 | WordPress used for testing | 7.0.3 (current stable branch at the time of writing) |
 | `Requires at least` / `Tested up to` | 7.0 |
 | `Requires PHP` | 7.4 (the minimum WordPress 7.0 itself requires) |
@@ -10,16 +10,17 @@
 | Database | SQLite, through the official *SQLite Database Integration* drop-in |
 | Web server | PHP built-in server, pretty permalinks enabled (`/%postname%/`) |
 | Date | 2026-08-10 |
+| Web server note | `PHP_CLI_SERVER_WORKERS=6`, so the admin self-check can call the site over loopback |
 
 ## 1. Summary
 
 | Suite | Checks | Passed | Failed |
 |---|---:|---:|---:|
-| 11.1 Standalone unit tests (PHPUnit, no WordPress) | 43 tests / 194 assertions | 43 | 0 |
-| 11.2 Integration suite (`run.php`) | 105 | 105 | 0 |
-| 11.2.10 Admin screen over HTTP (`admin.php`) | 45 | 45 | 0 |
+| 11.1 Standalone unit tests (PHPUnit, no WordPress) | 47 tests / 261 assertions | 47 | 0 |
+| 11.2 Integration suite (`run.php`) | 120 | 120 | 0 |
+| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 57 | 57 | 0 |
 | 11.2.12 WebP fallback (`webp-fallback.php`) | 8 | 8 | 0 |
-| 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 23 | 23 | 0 |
+| 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 26 | 26 | 0 |
 | PHPCS with the `WordPress` ruleset + `PHPCompatibilityWP` | — | 0 errors, 0 warnings | 0 |
 | 11.3 Plugin Check, all categories, including experimental | — | 0 errors, 0 warnings | 0 |
 
@@ -69,30 +70,49 @@ attachment-ID path is exercised.
 
 | Spec case | Group in the output | Checks | Status |
 |---|---|---:|---|
-| 11.2.1 Generation, caching, static URL on the second call | `11.2.1 generation and cache` | 12 | pass |
-| 11.2.1 Query-string fallback when permalinks are off | `11.2.1 permalink fallback` | 3 | pass |
+| 11.2.1 Plain cache URL from the first call, generation, static second request | `11.2.1 pretty cache URLs` | 15 | pass |
+| 11.2.1 Tampered hash, unsigned name and traversal are refused | `11.2.1 signature in the file name` | 7 | pass |
+| 11.2.1 The retired `sfir-generate` route is gone | `11.2.1 retired endpoint` | 3 | pass |
+| 11.2.1 The URL does not depend on the permalink structure | `11.2.1 permalinks` | 3 | pass |
 | 11.2.2 Every sizing rule verified on real files | `11.2.2 sizing rules on real files` | 8 | pass |
 | 11.2.3 Formats, transparency, background, GIF frame, quality | `11.2.3 formats, transparency and quality` | 9 | pass |
 | 11.2.4 Errors, placeholders, 403, log lines, front page stays 200 | `11.2.4 errors and placeholders` | 22 | pass |
-| 11.2.5 Invalidation when the source changes | `11.2.5 cache invalidation` | 4 | pass |
+| 11.2.5 Invalidation when the source changes | `11.2.5 cache invalidation` | 5 | pass |
 | 11.2.6 `sf_img_width`/`sf_img_height` and the dimension cache | `11.2.6 declared sizes and dimension cache` | 16 | pass |
 | 11.2.7 URL, attachment ID and ACF array give the same result | `11.2.7 source types` | 10 | pass |
 | 11.2.8 Two concurrent requests, one file, no leftover locks | `11.2.8 concurrent generation` | 4 | pass |
-| 11.2.9 30 variants over two passes | `11.2.9 many images over several passes` | 3 | pass |
+| 11.2.9 30 variants over two passes | `11.2.9 many images over several passes` | 4 | pass |
 | 11.2.10 Statistics, cache clearing, only cached files removed | `11.2.10 cache statistics and clearing` | 8 | pass |
 | 11.2.10 Admin access control | `11.2.10 admin access control` | 4 | pass |
 | 11.2.10 Statistics shown on the screen | `11.2.10 cache statistics` | 3 | pass |
 | 11.2.10 Clear cache: with and without nonce | `11.2.10 clear cache` | 7 | pass |
 | 11.2.10 Log viewer, escaping, clear log with and without nonce | `11.2.10 log viewer` | 12 | pass |
-| 11.2.10 Documentation and local-only assets | `11.2.10 documentation and assets` | 12 | pass |
+| 11.2.10 Documentation and local-only assets | `11.2.10 documentation and assets` | 14 | pass |
+| — Configuration self-check, nonce-protected re-run | `11.2 configuration self-check` | 10 | pass |
 | — Directory protection files and no directory listing | `directory protection` | 7 | pass |
 | 11.2.11 Log rotation past 2 MB | `11.2.11 log rotation` | 6 | pass |
 | 11.2.12 WebP fallback with `imagewebp()` disabled | `11.2.12 webp fallback` | 8 | pass |
-| 11.2.13 Activation | `11.2.13 activation` | 9 | pass |
+| 11.2.13 Activation | `11.2.13 activation` | 12 | pass |
 | 11.2.13 Deactivation keeps everything | `11.2.13 deactivation` | 6 | pass |
 | 11.2.13 Uninstall removes everything | `11.2.13 uninstall` | 8 | pass |
 
 ### Notes on how a few cases were verified
+
+* **Pretty URLs (1.1.0).** `sf_img()` returns
+  `.../cache_images/{tree}/{name}-{w}x{h}-c{crop}-q{q}[-bg{BG}]-{hash6}.{ext}`
+  on the very first call, with no query string. The suite asserts the file does
+  not exist yet, requests the URL, checks that the plugin answered it (the
+  `X-SFIR: generated` header), that the file appeared on disk, that a second
+  `sf_img()` call returns a byte-identical URL, and that a second HTTP request
+  is served by the web server without the plugin header.
+* **Signature in the file name.** Changing one character of the six-character
+  hash yields 403, an `E04` placeholder, a log line and no file on disk. A name
+  with the hash removed is refused too, and `..%2f` inside the mirrored tree is
+  refused without creating anything.
+* **Source lookup.** A cache name only carries a sanitised stem, so the handler
+  probes the usual extensions in the mirrored source directory and falls back to
+  a directory scan; the HMAC decides which candidate is the right one, so an
+  unsigned name can never resolve to a file.
 
 * **11.2.4 hostile input.** Beyond the four cases the specification lists, the
   suite also rejects `data:`, `php://filter/...`, `file://`, a protocol
@@ -125,12 +145,11 @@ attachment-ID path is exercised.
 
 ```
 $ phpcs --standard=phpcs.xml.dist --report=summary
-...... 6 / 6 (100%)
 
-Time: 459ms; Memory: 14MB
+Time: 679ms; Memory: 14MB
 ```
 
-No errors, no warnings. The ruleset (`phpcs.xml.dist`) is `WordPress` plus
+All 12 PHP files of the plugin are inspected, with no errors and no warnings. The ruleset (`phpcs.xml.dist`) is `WordPress` plus
 `PHPCompatibilityWP` with `testVersion` set to `7.4-`, so PHP 7.4 through the
 current release are all checked.
 
@@ -143,7 +162,8 @@ exclusions in the ruleset.
 |---|---|---|
 | `WordPress.WP.AlternativeFunctions.file_system_operations_*` | `class-sfir-logger.php`, `class-sfir-cache.php`, `class-sfir-endpoint.php`, `uninstall.php` | `WP_Filesystem` is not initialised on front-end requests and can require credentials. The plugin only ever writes inside its own uploads sub-directory, after a `realpath()` containment check, and a failed write is degraded to a placeholder rather than an error. |
 | `WordPress.PHP.NoSilencedErrors.Discouraged` | file and GD calls throughout | The whole plugin is built so that a broken image never breaks a page. Every silenced call has its return value checked immediately afterwards. |
-| `WordPress.Security.NonceVerification.Recommended` | `class-sfir-endpoint.php` | The generation endpoint is public, anonymous and cacheable, so a nonce is impossible. It is protected by an HMAC-SHA256 signature instead, which is verified before any file is touched. |
+| `WordPress.Security.NonceVerification.Recommended` | `class-sfir-endpoint.php` | The cache and placeholder routes are public, anonymous and cacheable, so a nonce is impossible. The cache route is protected by the HMAC in the file name, which is verified before any file is written. |
+| `WordPress.Security.ValidatedSanitizedInput.InputNotSanitized` | `class-sfir-endpoint.php` | `REQUEST_URI` is not sanitised as a string; it is split on `/`, each segment decoded on its own and refused unless it survives traversal, null byte and separator checks. |
 | `WordPress.Security.EscapeOutput.OutputNotEscaped` | `class-sfir-endpoint.php` (placeholder SVG), `class-sfir-admin.php` (form action) | The SVG is produced by `SFIR_Placeholder::render()`, which escapes every dynamic part; the form action is passed through `esc_url()` one line earlier. |
 
 ## 5. Plugin Check (spec 11.3)
@@ -157,7 +177,7 @@ $ wp plugin check sf-image-resizer \
 Success: Checks complete. No errors found.
 ```
 
-Two warnings were reported by the first run and both were fixed:
+Two warnings were reported by the very first 1.0.0 run and both were fixed then; the 1.1.0 code base reports none:
 
 | Warning | Fix |
 |---|---|
@@ -270,7 +290,20 @@ completeness.
    on a host with `memory_limit = -1`.
 8. **EXIF orientation** is applied to the cached dimensions as well as to the
    image, so a rotated JPEG reports the size it will actually have.
-9. `SFIR_Cache::flush_runtime_cache()` exists to drop the per-request memo.
+9. **Directory mirroring is verbatim.** Cache directories reproduce the source
+   tree exactly rather than sanitising each segment, because the request handler
+   has to map a cache path back onto its source directory. Only the file name is
+   reduced to `[A-Za-z0-9._-]`, as the specification requires.
+10. **Browser caching after a source change.** Cache responses are sent with
+    `Cache-Control: immutable`, and the URL of a given source and parameter set
+    never changes, so a browser that already downloaded a copy keeps it until
+    the year is up. Server side invalidation works: `sf_img()` deletes a copy
+    older than its source and the next request regenerates it. Putting the
+    source modification time into the hash would also bust the browser cache,
+    at the cost of a URL that changes whenever the source is re-saved; the
+    specification defines the hash over the path and parameters only, so that
+    is what is implemented.
+11. `SFIR_Cache::flush_runtime_cache()` exists to drop the per-request memo.
    Normal page loads never need it (each request is a fresh process); it is
    used by long-running CLI processes and by the test suite, which simulates
    many page renders inside one process.

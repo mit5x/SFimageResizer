@@ -3,7 +3,7 @@
  * Plugin Name:       SFimageResizer
  * Plugin URI:        https://web-format.net
  * Description:       On-demand image resizing, cropping and WebP/JPG conversion for theme developers, straight from PHP templates, with automatic disk caching.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 7.0
  * Requires PHP:      7.4
  * Author:            saytformat
@@ -21,7 +21,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Plugin version.
  */
-define( 'SFIR_VERSION', '1.0.0' );
+define( 'SFIR_VERSION', '1.1.0' );
 
 /**
  * Absolute path to the main plugin file.
@@ -50,11 +50,17 @@ require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-cache.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-placeholder.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-resizer.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-endpoint.php';
+require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-diagnostics.php';
 require_once SFIR_PLUGIN_DIR . 'includes/functions.php';
 
 if ( is_admin() ) {
 	require_once SFIR_PLUGIN_DIR . 'admin/class-sfir-admin.php';
 }
+
+/**
+ * Option holding the version the working directory was last prepared for.
+ */
+define( 'SFIR_VERSION_OPTION', 'sfir_version' );
 
 /**
  * Boots the plugin.
@@ -66,9 +72,33 @@ function sfir_bootstrap() {
 
 	if ( is_admin() ) {
 		SFIR_Admin::init();
+		add_action( 'admin_init', 'sfir_maybe_upgrade' );
 	}
 }
 add_action( 'plugins_loaded', 'sfir_bootstrap' );
+
+/**
+ * Refreshes the working directory after an update.
+ *
+ * Updating a plugin does not run its activation hook, so the protection files,
+ * which now also route missing cache files to WordPress, are rewritten here
+ * whenever the stored version differs from the running one.
+ *
+ * @return void
+ */
+function sfir_maybe_upgrade() {
+	if ( get_option( SFIR_VERSION_OPTION ) === SFIR_VERSION ) {
+		return;
+	}
+
+	SFIR_Cache::prepare_directories( true );
+	delete_transient( SFIR_Diagnostics::TRANSIENT );
+
+	// Drops the rewrite rule of the retired sfir-generate endpoint.
+	flush_rewrite_rules();
+
+	update_option( SFIR_VERSION_OPTION, SFIR_VERSION, true );
+}
 
 /**
  * Runs on plugin activation: prepares working directories, the HMAC secret and rewrite rules.
@@ -77,8 +107,8 @@ add_action( 'plugins_loaded', 'sfir_bootstrap' );
  */
 function sfir_activate() {
 	SFIR_Security::get_secret();
-	SFIR_Cache::prepare_directories();
-	SFIR_Endpoint::add_rewrite_rules();
+	SFIR_Cache::prepare_directories( true );
+	update_option( SFIR_VERSION_OPTION, SFIR_VERSION, true );
 	flush_rewrite_rules();
 }
 register_activation_hook( __FILE__, 'sfir_activate' );

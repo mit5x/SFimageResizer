@@ -211,6 +211,61 @@ SFIR_TestRunner::check(
 );
 
 /* --------------------------------------------------------------------------
+ * The configuration self-check.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '11.2 configuration self-check' );
+
+delete_transient( SFIR_Diagnostics::TRANSIENT );
+
+$check = SFIR_Diagnostics::run();
+
+SFIR_TestRunner::check( $check['ok'], 'the self-check confirms that pretty URLs work', $check['message'] );
+SFIR_TestRunner::check( false !== strpos( $check['url'], '/cache_images/' ), 'the self-check requested a cache URL', $check['url'] );
+SFIR_TestRunner::check( ! file_exists( sfir_url_to_path( $check['url'] ) ), 'the self-check cleaned up the file it generated' );
+
+$stored = get_transient( SFIR_Diagnostics::TRANSIENT );
+
+SFIR_TestRunner::check( is_array( $stored ) && ! empty( $stored['ok'] ), 'the result is cached in a transient' );
+
+$page = sfir_admin_request( $page_url );
+
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Configuration check' ), 'the page shows the configuration check' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Pretty URLs are working.' ), 'the page reports that pretty URLs work' );
+SFIR_TestRunner::check( false === strpos( $page['body'], 'location ^~' ), 'the nginx snippet is hidden while everything works' );
+
+$nonce = sfir_form_nonce( $page['body'], 'sfir_recheck' );
+
+SFIR_TestRunner::check( '' !== $nonce, 'the re-check form carries a nonce' );
+
+$without_nonce = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => 'action=sfir_recheck',
+	)
+);
+
+SFIR_TestRunner::equals( 403, $without_nonce['status'], 'a re-check POST without a nonce is refused with 403' );
+
+$with_nonce = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => 'sfir_recheck',
+				'_wpnonce' => $nonce,
+			)
+		),
+	)
+);
+
+SFIR_TestRunner::equals( 302, $with_nonce['status'], 'a signed re-check POST redirects back to the page' );
+
+SFIR_Cache::flush_runtime_cache();
+
+/* --------------------------------------------------------------------------
  * The log viewer.
  * ----------------------------------------------------------------------- */
 
@@ -290,7 +345,7 @@ SFIR_TestRunner::group( '11.2.10 documentation and assets' );
 
 $page = sfir_admin_request( $page_url );
 
-foreach ( array( 'sf_img(', 'sf_img_width(', 'sf_img_height(', 'sf_img_tag(', 'E07', 'crop', 'WebP fallback' ) as $needle ) {
+foreach ( array( 'sf_img(', 'sf_img_width(', 'sf_img_height(', 'sf_img_tag(', 'E07', 'crop', 'WebP fallback', 'How the URL is built', '{hash}' ) as $needle ) {
 	SFIR_TestRunner::check( false !== strpos( $page['body'], $needle ), 'the documentation mentions ' . $needle );
 }
 

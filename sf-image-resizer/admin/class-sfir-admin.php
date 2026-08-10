@@ -37,6 +37,7 @@ class SFIR_Admin {
 		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_assets' ) );
 		add_action( 'admin_post_sfir_clear_cache', array( __CLASS__, 'handle_clear_cache' ) );
 		add_action( 'admin_post_sfir_clear_log', array( __CLASS__, 'handle_clear_log' ) );
+		add_action( 'admin_post_sfir_recheck', array( __CLASS__, 'handle_recheck' ) );
 	}
 
 	/**
@@ -127,6 +128,28 @@ class SFIR_Admin {
 			$cleared
 				? __( 'The error log has been cleared.', 'sf-image-resizer' )
 				: __( 'The error log could not be cleared.', 'sf-image-resizer' )
+		);
+
+		self::redirect_back();
+	}
+
+	/**
+	 * Handles the "check again" form submission.
+	 *
+	 * @return void
+	 */
+	public static function handle_recheck() {
+		self::verify_request( 'sfir_recheck' );
+
+		delete_transient( SFIR_Diagnostics::TRANSIENT );
+
+		$result = SFIR_Diagnostics::run();
+
+		self::set_notice(
+			$result['ok'] ? 'success' : 'error',
+			$result['ok']
+				? __( 'Pretty URLs are working on this server.', 'sf-image-resizer' )
+				: __( 'Pretty URLs could not be confirmed. See the configuration check below.', 'sf-image-resizer' )
 		);
 
 		self::redirect_back();
@@ -263,6 +286,8 @@ class SFIR_Admin {
 				<?php submit_button( __( 'Clear image cache', 'sf-image-resizer' ), 'secondary', 'sfir-clear-cache', false ); ?>
 			</form>
 
+			<?php self::render_diagnostics( $action ); ?>
+
 			<h2><?php esc_html_e( 'Error log', 'sf-image-resizer' ); ?></h2>
 			<p class="description">
 				<?php esc_html_e( 'The 50 first lines of the log file are shown below.', 'sf-image-resizer' ); ?>
@@ -278,6 +303,56 @@ class SFIR_Admin {
 
 			<?php self::render_documentation(); ?>
 		</div>
+		<?php
+	}
+
+	/**
+	 * Renders the configuration self-check.
+	 *
+	 * @param string $action URL of admin-post.php, already escaped.
+	 * @return void
+	 */
+	protected static function render_diagnostics( $action ) {
+		$result = SFIR_Diagnostics::get_cached();
+		?>
+		<h2><?php esc_html_e( 'Configuration check', 'sf-image-resizer' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( 'Image URLs point straight at the cache file. When that file does not exist yet, the web server has to hand the request to WordPress so the plugin can create it. This check requests such a URL and reports what happened.', 'sf-image-resizer' ); ?>
+		</p>
+
+		<?php if ( $result['ok'] ) : ?>
+			<div class="notice notice-success inline sfir-check"><p>
+				<strong><?php esc_html_e( 'Pretty URLs are working.', 'sf-image-resizer' ); ?></strong>
+				<?php esc_html_e( 'Missing cache files reach the plugin and are generated on the fly.', 'sf-image-resizer' ); ?>
+			</p></div>
+		<?php else : ?>
+			<div class="notice notice-warning inline sfir-check">
+				<p><strong><?php esc_html_e( 'Pretty URLs could not be confirmed.', 'sf-image-resizer' ); ?></strong></p>
+				<p><?php echo esc_html( $result['message'] ); ?></p>
+				<p><?php esc_html_e( 'On nginx, add this to the server configuration and reload it. Your host can apply it for you:', 'sf-image-resizer' ); ?></p>
+				<pre class="sfir-code"><code><?php echo esc_html( SFIR_Cache::get_nginx_snippet() ); ?></code></pre>
+				<p><?php esc_html_e( 'On Apache, make sure .htaccess files are honoured (AllowOverride All) for the uploads directory.', 'sf-image-resizer' ); ?></p>
+			</div>
+		<?php endif; ?>
+
+		<table class="widefat striped sfir-stats">
+			<tbody>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Checked URL', 'sf-image-resizer' ); ?></th>
+					<td><code><?php echo esc_html( $result['url'] ); ?></code></td>
+				</tr>
+				<tr>
+					<th scope="row"><?php esc_html_e( 'Result', 'sf-image-resizer' ); ?></th>
+					<td><?php echo esc_html( $result['message'] ); ?></td>
+				</tr>
+			</tbody>
+		</table>
+
+		<form method="post" action="<?php echo $action; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by the caller. ?>" class="sfir-form">
+			<?php wp_nonce_field( 'sfir_recheck' ); ?>
+			<input type="hidden" name="action" value="sfir_recheck" />
+			<?php submit_button( __( 'Check again', 'sf-image-resizer' ), 'secondary', 'sfir-recheck', false ); ?>
+		</form>
 		<?php
 	}
 
@@ -411,6 +486,14 @@ class SFIR_Admin {
 		}
 		?>
 
+		<h3><?php esc_html_e( 'How the URL is built', 'sf-image-resizer' ); ?></h3>
+		<p><?php esc_html_e( 'Cached copies mirror the directory tree of their source inside the cache directory, and the file name carries the parameters plus a short signature:', 'sf-image-resizer' ); ?></p>
+		<pre class="sfir-code"><code><?php echo esc_html( SFIR_Cache::get_cache_url() . '/2026/08/photo-800x0-c0-q75-a3f9c1.webp' ); ?></code></pre>
+		<p>
+			<code>{name}-{w}x{h}-c{crop}-q{q}[-bg{BG}]-{hash}.{format}</code><br />
+			<?php esc_html_e( 'The bg part appears only when a background colour was requested. The hash is six hexadecimal characters of an HMAC over the source path and the parameters; it lets the plugin create only the sizes your templates actually ask for, and cannot be guessed to fill the disk.', 'sf-image-resizer' ); ?>
+		</p>
+
 		<h3><?php esc_html_e( 'Error codes', 'sf-image-resizer' ); ?></h3>
 		<table class="widefat striped">
 			<thead>
@@ -434,8 +517,8 @@ class SFIR_Admin {
 			<li><?php esc_html_e( 'WebP fallback: if this PHP build has no WebP support, JPG is produced instead and the cached file gets a .jpg extension. A single notice is written to the log.', 'sf-image-resizer' ); ?></li>
 			<li><?php esc_html_e( 'Animated GIF: only the first frame is used, animation is not preserved.', 'sf-image-resizer' ); ?></li>
 			<li><?php esc_html_e( 'SVG files are not accepted as input.', 'sf-image-resizer' ); ?></li>
-			<li><?php esc_html_e( 'The first page render after a change returns signed generation URLs; once every file exists, later renders return static URLs and PHP is no longer involved.', 'sf-image-resizer' ); ?></li>
-			<li><?php esc_html_e( 'On nginx, .htaccess files are ignored. Deny direct access to the logs directory in your server configuration.', 'sf-image-resizer' ); ?></li>
+			<li><?php esc_html_e( 'Every call returns the same plain URL of the cached file, from the very first render. When that file does not exist yet, the request falls through to WordPress and the plugin generates it; afterwards the web server serves it as a static file and PHP is no longer involved.', 'sf-image-resizer' ); ?></li>
+			<li><?php esc_html_e( 'On nginx, .htaccess files are ignored. Deny direct access to the logs directory in your server configuration, and add the location block from the configuration check above.', 'sf-image-resizer' ); ?></li>
 		</ul>
 		<?php
 	}

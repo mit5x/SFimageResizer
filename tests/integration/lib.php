@@ -293,6 +293,48 @@ function sfir_pixel( $data, $x, $y ) {
 }
 
 /**
+ * Turns a URL inside the uploads directory back into an absolute path.
+ *
+ * @param string $url Absolute URL.
+ * @return string
+ */
+function sfir_url_to_path( $url ) {
+	$uploads = wp_get_upload_dir();
+	$url     = html_entity_decode( $url, ENT_QUOTES );
+	$path    = str_replace( $uploads['baseurl'], $uploads['basedir'], $url );
+
+	return rawurldecode( (string) wp_parse_url( $path, PHP_URL_PATH ) );
+}
+
+/**
+ * Replaces the six character hash of a cache URL with a different one.
+ *
+ * @param string $url Cache URL.
+ * @return string
+ */
+function sfir_corrupt_hash( $url ) {
+	return preg_replace_callback(
+		'/-([a-f0-9]{6})(\.(?:webp|jpg))$/',
+		function ( $matches ) {
+			$hash = $matches[1];
+			$hash[0] = ( '0' === $hash[0] ) ? '1' : '0';
+			return '-' . $hash . $matches[2];
+		},
+		$url
+	);
+}
+
+/**
+ * Returns the six character hash carried by a cache URL.
+ *
+ * @param string $url Cache URL.
+ * @return string
+ */
+function sfir_hash_of( $url ) {
+	return preg_match( '/-([a-f0-9]{6})\.(?:webp|jpg)$/', $url, $matches ) ? '-' . $matches[1] : '';
+}
+
+/**
  * Recursively lists the files of a directory.
  *
  * @param string $dir Directory to walk.

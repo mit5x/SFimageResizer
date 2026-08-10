@@ -18,6 +18,15 @@ class SFIR_Security {
 	const SECRET_OPTION = 'sfir_secret';
 
 	/**
+	 * Number of hexadecimal characters kept from the HMAC in a cache file name.
+	 *
+	 * Six characters are 16.7 million possibilities. Guessing one costs millions
+	 * of HTTP requests for a single generated file, which is far more expensive
+	 * than the disk it would fill, while keeping the URL short.
+	 */
+	const HASH_LENGTH = 6;
+
+	/**
 	 * Runtime copy of the signing secret.
 	 *
 	 * @var string
@@ -75,6 +84,33 @@ class SFIR_Security {
 		}
 
 		return hash_equals( self::sign( $payload, $secret ), $signature );
+	}
+
+	/**
+	 * Returns the short HMAC that goes into a cache file name.
+	 *
+	 * @param string $payload Payload to sign.
+	 * @param string $secret  Optional explicit secret, used by the unit tests.
+	 * @return string HASH_LENGTH hexadecimal characters.
+	 */
+	public static function short_hash( $payload, $secret = null ) {
+		return substr( self::sign( $payload, $secret ), 0, self::HASH_LENGTH );
+	}
+
+	/**
+	 * Verifies a short HMAC in constant time.
+	 *
+	 * @param string $payload Payload that was signed.
+	 * @param string $hash    Hash taken from the requested file name.
+	 * @param string $secret  Optional explicit secret, used by the unit tests.
+	 * @return bool
+	 */
+	public static function verify_short_hash( $payload, $hash, $secret = null ) {
+		if ( ! is_string( $hash ) || self::HASH_LENGTH !== strlen( $hash ) ) {
+			return false;
+		}
+
+		return hash_equals( self::short_hash( $payload, $secret ), $hash );
 	}
 
 	/**

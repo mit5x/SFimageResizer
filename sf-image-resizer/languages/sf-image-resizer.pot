@@ -2,23 +2,23 @@
 # This file is distributed under the GPLv2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: SFimageResizer 1.0.0\n"
+"Project-Id-Version: SFimageResizer 1.1.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/sf-image-resizer\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-10T11:59:03+00:00\n"
+"POT-Creation-Date: 2026-08-10T15:14:03+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: sf-image-resizer\n"
 
 #. Plugin Name of the plugin
 #: sf-image-resizer.php
-#: admin/class-sfir-admin.php:49
 #: admin/class-sfir-admin.php:50
-#: admin/class-sfir-admin.php:214
+#: admin/class-sfir-admin.php:51
+#: admin/class-sfir-admin.php:237
 msgid "SFimageResizer"
 msgstr ""
 
@@ -38,245 +38,337 @@ msgstr ""
 msgid "saytformat"
 msgstr ""
 
-#: admin/class-sfir-admin.php:87
+#: admin/class-sfir-admin.php:88
 msgid "Delete every cached image? They will be regenerated on demand."
 msgstr ""
 
-#: admin/class-sfir-admin.php:88
+#: admin/class-sfir-admin.php:89
 msgid "Clear the error log?"
 msgstr ""
 
 #. translators: %d: number of deleted files.
-#: admin/class-sfir-admin.php:107
+#: admin/class-sfir-admin.php:108
 #, php-format
 msgid "%d cached file deleted."
 msgid_plural "%d cached files deleted."
 msgstr[0] ""
 msgstr[1] ""
 
-#: admin/class-sfir-admin.php:128
+#: admin/class-sfir-admin.php:129
 msgid "The error log has been cleared."
 msgstr ""
 
-#: admin/class-sfir-admin.php:129
+#: admin/class-sfir-admin.php:130
 msgid "The error log could not be cleared."
 msgstr ""
 
-#: admin/class-sfir-admin.php:143
-#: admin/class-sfir-admin.php:206
+#: admin/class-sfir-admin.php:151
+msgid "Pretty URLs are working on this server."
+msgstr ""
+
+#: admin/class-sfir-admin.php:152
+msgid "Pretty URLs could not be confirmed. See the configuration check below."
+msgstr ""
+
+#: admin/class-sfir-admin.php:166
+#: admin/class-sfir-admin.php:229
 msgid "You are not allowed to do this."
 msgstr ""
 
-#: admin/class-sfir-admin.php:217
+#: admin/class-sfir-admin.php:240
 msgid "Cache"
 msgstr ""
 
-#: admin/class-sfir-admin.php:221
+#: admin/class-sfir-admin.php:244
 msgid "Cached files"
 msgstr ""
 
-#: admin/class-sfir-admin.php:226
-#: admin/class-sfir-admin.php:238
+#: admin/class-sfir-admin.php:249
+#: admin/class-sfir-admin.php:261
 msgid "(approximate)"
 msgstr ""
 
-#: admin/class-sfir-admin.php:232
+#: admin/class-sfir-admin.php:255
 msgid "Total size"
 msgstr ""
 
 #. translators: %s: cache size in megabytes.
-#: admin/class-sfir-admin.php:236
+#: admin/class-sfir-admin.php:259
 #, php-format
 msgid "%s MB"
 msgstr ""
 
-#: admin/class-sfir-admin.php:244
+#: admin/class-sfir-admin.php:267
 msgid "Cache directory"
 msgstr ""
 
-#: admin/class-sfir-admin.php:248
+#: admin/class-sfir-admin.php:271
 msgid "WebP output"
 msgstr ""
 
-#: admin/class-sfir-admin.php:252
+#: admin/class-sfir-admin.php:275
 msgid "Supported by this server."
 msgstr ""
 
-#: admin/class-sfir-admin.php:253
+#: admin/class-sfir-admin.php:276
 msgid "Not available: this GD build has no WebP support, JPG is produced instead."
 msgstr ""
 
-#: admin/class-sfir-admin.php:263
+#: admin/class-sfir-admin.php:286
 msgid "Clear image cache"
 msgstr ""
 
-#: admin/class-sfir-admin.php:266
+#: admin/class-sfir-admin.php:291
 msgid "Error log"
 msgstr ""
 
-#: admin/class-sfir-admin.php:268
+#: admin/class-sfir-admin.php:293
 msgid "The 50 first lines of the log file are shown below."
 msgstr ""
 
-#: admin/class-sfir-admin.php:271
+#: admin/class-sfir-admin.php:296
 msgid "The log is empty."
 msgstr ""
 
-#: admin/class-sfir-admin.php:276
+#: admin/class-sfir-admin.php:301
 msgid "Clear log"
 msgstr ""
 
-#: admin/class-sfir-admin.php:291
-msgid "Documentation"
-msgstr ""
-
-#: admin/class-sfir-admin.php:293
-msgid "Call these functions from your theme templates. They never throw and never break a page: on error they return an SVG placeholder and write one line to the log."
-msgstr ""
-
-#: admin/class-sfir-admin.php:295
-msgid "Functions"
-msgstr ""
-
-#: admin/class-sfir-admin.php:299
-msgid "Function"
-msgstr ""
-
-#: admin/class-sfir-admin.php:300
-#: admin/class-sfir-admin.php:333
-msgid "Description"
-msgstr ""
-
-#: admin/class-sfir-admin.php:306
-msgid "Returns the URL of the resized copy. Output it with esc_url()."
-msgstr ""
-
-#: admin/class-sfir-admin.php:310
-msgid "Returns the width the copy will have, calculated without generating it."
-msgstr ""
-
-#: admin/class-sfir-admin.php:314
-msgid "Returns the matching height."
-msgstr ""
-
 #: admin/class-sfir-admin.php:318
-msgid "Returns a complete img tag with src, width, height, loading=\"lazy\" and decoding=\"async\". Attributes in $attrs override the defaults."
+msgid "Configuration check"
 msgstr ""
 
-#: admin/class-sfir-admin.php:323
-msgid "Sources"
+#: admin/class-sfir-admin.php:320
+msgid "Image URLs point straight at the cache file. When that file does not exist yet, the web server has to hand the request to WordPress so the plugin can create it. This check requests such a URL and reports what happened."
 msgstr ""
 
-#: admin/class-sfir-admin.php:324
-msgid "$source accepts a URL belonging to this site, an attachment ID, or an ACF image array. Anything else, including URLs on other hosts, produces a placeholder."
+#: admin/class-sfir-admin.php:325
+msgid "Pretty URLs are working."
 msgstr ""
 
 #: admin/class-sfir-admin.php:326
-msgid "Parameters"
+msgid "Missing cache files reach the plugin and are generated on the fly."
 msgstr ""
 
 #: admin/class-sfir-admin.php:330
-msgid "Parameter"
-msgstr ""
-
-#: admin/class-sfir-admin.php:331
-msgid "Values"
+msgid "Pretty URLs could not be confirmed."
 msgstr ""
 
 #: admin/class-sfir-admin.php:332
-msgid "Default"
+msgid "On nginx, add this to the server configuration and reload it. Your host can apply it for you:"
+msgstr ""
+
+#: admin/class-sfir-admin.php:334
+msgid "On Apache, make sure .htaccess files are honoured (AllowOverride All) for the uploads directory."
 msgstr ""
 
 #: admin/class-sfir-admin.php:341
-msgid "Maximum width in pixels. 0 means \"not constrained\"."
+msgid "Checked URL"
 msgstr ""
 
-#: admin/class-sfir-admin.php:347
-msgid "Maximum height in pixels. 0 means \"not constrained\"."
+#: admin/class-sfir-admin.php:345
+msgid "Result"
 msgstr ""
 
-#: admin/class-sfir-admin.php:353
-msgid "Output format."
+#: admin/class-sfir-admin.php:354
+msgid "Check again"
 msgstr ""
 
-#: admin/class-sfir-admin.php:359
-msgid "Output quality."
+#: admin/class-sfir-admin.php:366
+msgid "Documentation"
 msgstr ""
 
-#: admin/class-sfir-admin.php:363
-msgid "3 or 6 hex digits, without \"#\""
+#: admin/class-sfir-admin.php:368
+msgid "Call these functions from your theme templates. They never throw and never break a page: on error they return an SVG placeholder and write one line to the log."
 msgstr ""
 
-#: admin/class-sfir-admin.php:364
-msgid "transparent, FFFFFF for JPG"
+#: admin/class-sfir-admin.php:370
+msgid "Functions"
 msgstr ""
 
-#: admin/class-sfir-admin.php:365
-msgid "Background colour used to fill transparent areas."
+#: admin/class-sfir-admin.php:374
+msgid "Function"
 msgstr ""
 
-#: admin/class-sfir-admin.php:371
-msgid "Crop to exactly w x h, centred. Ignored unless both w and h are set."
+#: admin/class-sfir-admin.php:375
+#: admin/class-sfir-admin.php:408
+msgid "Description"
 msgstr ""
 
-#: admin/class-sfir-admin.php:376
-msgid "Images are never enlarged. If the source is smaller than the request, the result keeps the source size; with crop=1 it is cropped to the largest region matching the requested ratio."
+#: admin/class-sfir-admin.php:381
+msgid "Returns the URL of the resized copy. Output it with esc_url()."
 msgstr ""
 
-#: admin/class-sfir-admin.php:378
-msgid "Examples"
+#: admin/class-sfir-admin.php:385
+msgid "Returns the width the copy will have, calculated without generating it."
 msgstr ""
 
-#: admin/class-sfir-admin.php:383
-msgid "1. A plain image URL:"
+#: admin/class-sfir-admin.php:389
+msgid "Returns the matching height."
 msgstr ""
 
-#: admin/class-sfir-admin.php:390
-msgid "2. An attachment ID, cropped to a fixed box:"
+#: admin/class-sfir-admin.php:393
+msgid "Returns a complete img tag with src, width, height, loading=\"lazy\" and decoding=\"async\". Attributes in $attrs override the defaults."
 msgstr ""
 
-#: admin/class-sfir-admin.php:394
-msgid "3. An ACF image field, flattened onto a white background as JPG:"
+#: admin/class-sfir-admin.php:398
+msgid "Sources"
 msgstr ""
 
 #: admin/class-sfir-admin.php:399
-msgid "4. A responsive srcset:"
+msgid "$source accepts a URL belonging to this site, an attachment ID, or an ACF image array. Anything else, including URLs on other hosts, produces a placeholder."
 msgstr ""
 
-#: admin/class-sfir-admin.php:414
-msgid "Error codes"
+#: admin/class-sfir-admin.php:401
+msgid "Parameters"
 msgstr ""
 
-#: admin/class-sfir-admin.php:418
-msgid "Code"
+#: admin/class-sfir-admin.php:405
+msgid "Parameter"
 msgstr ""
 
-#: admin/class-sfir-admin.php:419
-msgid "Meaning"
+#: admin/class-sfir-admin.php:406
+msgid "Values"
 msgstr ""
 
-#: admin/class-sfir-admin.php:432
-msgid "Notes"
+#: admin/class-sfir-admin.php:407
+msgid "Default"
+msgstr ""
+
+#: admin/class-sfir-admin.php:416
+msgid "Maximum width in pixels. 0 means \"not constrained\"."
+msgstr ""
+
+#: admin/class-sfir-admin.php:422
+msgid "Maximum height in pixels. 0 means \"not constrained\"."
+msgstr ""
+
+#: admin/class-sfir-admin.php:428
+msgid "Output format."
 msgstr ""
 
 #: admin/class-sfir-admin.php:434
-msgid "WebP fallback: if this PHP build has no WebP support, JPG is produced instead and the cached file gets a .jpg extension. A single notice is written to the log."
-msgstr ""
-
-#: admin/class-sfir-admin.php:435
-msgid "Animated GIF: only the first frame is used, animation is not preserved."
-msgstr ""
-
-#: admin/class-sfir-admin.php:436
-msgid "SVG files are not accepted as input."
-msgstr ""
-
-#: admin/class-sfir-admin.php:437
-msgid "The first page render after a change returns signed generation URLs; once every file exists, later renders return static URLs and PHP is no longer involved."
+msgid "Output quality."
 msgstr ""
 
 #: admin/class-sfir-admin.php:438
-msgid "On nginx, .htaccess files are ignored. Deny direct access to the logs directory in your server configuration."
+msgid "3 or 6 hex digits, without \"#\""
+msgstr ""
+
+#: admin/class-sfir-admin.php:439
+msgid "transparent, FFFFFF for JPG"
+msgstr ""
+
+#: admin/class-sfir-admin.php:440
+msgid "Background colour used to fill transparent areas."
+msgstr ""
+
+#: admin/class-sfir-admin.php:446
+msgid "Crop to exactly w x h, centred. Ignored unless both w and h are set."
+msgstr ""
+
+#: admin/class-sfir-admin.php:451
+msgid "Images are never enlarged. If the source is smaller than the request, the result keeps the source size; with crop=1 it is cropped to the largest region matching the requested ratio."
+msgstr ""
+
+#: admin/class-sfir-admin.php:453
+msgid "Examples"
+msgstr ""
+
+#: admin/class-sfir-admin.php:458
+msgid "1. A plain image URL:"
+msgstr ""
+
+#: admin/class-sfir-admin.php:465
+msgid "2. An attachment ID, cropped to a fixed box:"
+msgstr ""
+
+#: admin/class-sfir-admin.php:469
+msgid "3. An ACF image field, flattened onto a white background as JPG:"
+msgstr ""
+
+#: admin/class-sfir-admin.php:474
+msgid "4. A responsive srcset:"
+msgstr ""
+
+#: admin/class-sfir-admin.php:489
+msgid "How the URL is built"
+msgstr ""
+
+#: admin/class-sfir-admin.php:490
+msgid "Cached copies mirror the directory tree of their source inside the cache directory, and the file name carries the parameters plus a short signature:"
+msgstr ""
+
+#: admin/class-sfir-admin.php:494
+msgid "The bg part appears only when a background colour was requested. The hash is six hexadecimal characters of an HMAC over the source path and the parameters; it lets the plugin create only the sizes your templates actually ask for, and cannot be guessed to fill the disk."
+msgstr ""
+
+#: admin/class-sfir-admin.php:497
+msgid "Error codes"
+msgstr ""
+
+#: admin/class-sfir-admin.php:501
+msgid "Code"
+msgstr ""
+
+#: admin/class-sfir-admin.php:502
+msgid "Meaning"
+msgstr ""
+
+#: admin/class-sfir-admin.php:515
+msgid "Notes"
+msgstr ""
+
+#: admin/class-sfir-admin.php:517
+msgid "WebP fallback: if this PHP build has no WebP support, JPG is produced instead and the cached file gets a .jpg extension. A single notice is written to the log."
+msgstr ""
+
+#: admin/class-sfir-admin.php:518
+msgid "Animated GIF: only the first frame is used, animation is not preserved."
+msgstr ""
+
+#: admin/class-sfir-admin.php:519
+msgid "SVG files are not accepted as input."
+msgstr ""
+
+#: admin/class-sfir-admin.php:520
+msgid "Every call returns the same plain URL of the cached file, from the very first render. When that file does not exist yet, the request falls through to WordPress and the plugin generates it; afterwards the web server serves it as a static file and PHP is no longer involved."
+msgstr ""
+
+#: admin/class-sfir-admin.php:521
+msgid "On nginx, .htaccess files are ignored. Deny direct access to the logs directory in your server configuration, and add the location block from the configuration check above."
+msgstr ""
+
+#: includes/class-sfir-diagnostics.php:78
+msgid "The check could not create its test image in the uploads directory."
+msgstr ""
+
+#: includes/class-sfir-diagnostics.php:87
+msgid "The check could not read back its own test image."
+msgstr ""
+
+#. translators: %s: error message returned by the HTTP request.
+#: includes/class-sfir-diagnostics.php:116
+#, php-format
+msgid "The site could not call itself over HTTP: %s. This often means loopback requests are blocked, which does not prove that pretty URLs are broken."
+msgstr ""
+
+#: includes/class-sfir-diagnostics.php:138
+msgid "A missing cache file was requested and the plugin generated it."
+msgstr ""
+
+#: includes/class-sfir-diagnostics.php:142
+msgid "The server answered 404 for a missing cache file instead of passing the request to WordPress."
+msgstr ""
+
+#: includes/class-sfir-diagnostics.php:146
+msgid "The server answered with an HTML page instead of an image, so the request never reached the plugin."
+msgstr ""
+
+#. translators: 1: HTTP status code, 2: content type of the response.
+#: includes/class-sfir-diagnostics.php:153
+#, php-format
+msgid "Unexpected answer for a missing cache file: HTTP %1$d, content type %2$s."
 msgstr ""
 
 #: includes/class-sfir-placeholder.php:36

@@ -30,11 +30,24 @@ if ( is_dir( $base_dir ) ) {
 	foreach ( array_reverse( sfir_list_files( $base_dir ) ) as $file ) {
 		unlink( $file );
 	}
-	foreach ( array( '/cache_images', '/logs', '' ) as $suffix ) {
-		if ( is_dir( $base_dir . $suffix ) ) {
-			@rmdir( $base_dir . $suffix );
+
+	$directories = array();
+	$iterator    = new RecursiveIteratorIterator(
+		new RecursiveDirectoryIterator( $base_dir, FilesystemIterator::SKIP_DOTS ),
+		RecursiveIteratorIterator::CHILD_FIRST
+	);
+
+	foreach ( $iterator as $entry ) {
+		if ( $entry->isDir() ) {
+			$directories[] = $entry->getPathname();
 		}
 	}
+
+	foreach ( $directories as $directory ) {
+		@rmdir( $directory );
+	}
+
+	@rmdir( $base_dir );
 }
 
 delete_option( SFIR_Security::SECRET_OPTION );
@@ -59,9 +72,23 @@ SFIR_TestRunner::check( is_string( $secret ) && strlen( $secret ) >= 32, 'activa
 $rules = get_option( 'rewrite_rules' );
 
 SFIR_TestRunner::check(
-	is_array( $rules ) && isset( $rules['^sfir-generate/?$'] ),
-	'activation registers the generation rewrite rule'
+	! is_array( $rules ) || ! isset( $rules['^sfir-generate/?$'] ),
+	'activation registers no rewrite rule for the retired endpoint'
 );
+
+$htaccess = (string) file_get_contents( $base_dir . '/cache_images/.htaccess' );
+
+SFIR_TestRunner::check(
+	false !== strpos( $htaccess, 'RewriteCond %{REQUEST_FILENAME} !-f' ) && false !== strpos( $htaccess, 'index.php' ),
+	'the cache .htaccess routes missing files to WordPress'
+);
+
+SFIR_TestRunner::check(
+	false !== strpos( $htaccess, 'Options -Indexes' ),
+	'the cache .htaccess still forbids directory listing'
+);
+
+SFIR_TestRunner::equals( SFIR_VERSION, get_option( 'sfir_version' ), 'activation records the plugin version' );
 
 /* --------------------------------------------------------------------------
  * Deactivation keeps everything.

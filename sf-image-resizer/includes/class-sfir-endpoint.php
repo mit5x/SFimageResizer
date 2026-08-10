@@ -1,6 +1,6 @@
 <?php
 /**
- * The on-demand generation endpoint.
+ * Request handling: on-demand generation behind the cache URL.
  *
  * @package SFimageResizer
  */
@@ -8,14 +8,14 @@
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Receives signed generation requests, produces the cache file and serves it.
+ * Serves cache files that do not exist yet.
+ *
+ * A cached copy is a plain static file, so the web server answers it without
+ * ever reaching PHP. When the file is missing, the standard WordPress rewrite
+ * sends the request to index.php, this class recognises the cache URL, proves
+ * it was signed by this site, generates the file and returns it.
  */
 class SFIR_Endpoint {
-
-	/**
-	 * Path used by the pretty permalink form of the endpoint.
-	 */
-	const ROUTE = 'sfir-generate';
 
 	/**
 	 * Maximum number of seconds spent waiting for a concurrent generation.
@@ -23,185 +23,331 @@ class SFIR_Endpoint {
 	const LOCK_WAIT = 5;
 
 	/**
-	 * Registers the endpoint.
+	 * Maximum number of directory entries scanned when looking for a source.
+	 */
+	const MAX_SCAN_ENTRIES = 20000;
+
+	/**
+	 * Registers the request handlers.
 	 *
 	 * @return void
 	 */
 	public static function init() {
 		add_filter( 'query_vars', array( __CLASS__, 'register_query_vars' ) );
-		add_action( 'init', array( __CLASS__, 'add_rewrite_rules' ) );
-		add_action( 'parse_request', array( __CLASS__, 'maybe_handle' ) );
+		add_action( 'init', array( __CLASS__, 'maybe_handle_cache_request' ), 0 );
+		add_action( 'parse_request', array( __CLASS__, 'maybe_handle_placeholder' ) );
 	}
 
 	/**
-	 * Declares the public query vars used by the endpoint.
+	 * Declares the public query var used by the placeholder route.
 	 *
 	 * @param array $vars Registered query vars.
 	 * @return array
 	 */
 	public static function register_query_vars( $vars ) {
-		$vars[] = 'sfir_generate';
 		$vars[] = 'sfir_placeholder';
 
 		return $vars;
 	}
 
 	/**
-	 * Adds the pretty permalink rule for the endpoint.
-	 *
-	 * @return void
-	 */
-	public static function add_rewrite_rules() {
-		add_rewrite_rule( '^' . self::ROUTE . '/?$', 'index.php?sfir_generate=1', 'top' );
-	}
-
-	/**
-	 * Builds an endpoint URL.
-	 *
-	 * Uses the pretty permalink form when permalinks are enabled and falls back
-	 * to a plain query string otherwise. The query var is present in both forms,
-	 * so the endpoint keeps working even when rewrite rules were never flushed.
+	 * Builds the URL of the placeholder route.
 	 *
 	 * @param array $args Query arguments.
 	 * @return string
 	 */
 	public static function build_url( array $args ) {
-		$structure = get_option( 'permalink_structure' );
-		$base      = $structure ? home_url( '/' . self::ROUTE . '/' ) : home_url( '/' );
+		return home_url( '/' ) . '?' . http_build_query( $args, '', '&', PHP_QUERY_RFC3986 );
+	}
 
-		// http_build_query() is used instead of add_query_arg() because the
-		// latter leaves the "&" and "=" inside the packed parameter value raw.
-		return $base . '?' . http_build_query( $args, '', '&', PHP_QUERY_RFC3986 );
+	// ---------------------------------------------------------------------
+	// The cache route.
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Handles a request that points at a cache file which does not exist.
+	 *
+	 * Anything that is not addressed to the cache directory leaves this method
+	 * after a single string comparison.
+	 *
+	 * @return void
+	 */
+	public static function maybe_handle_cache_request() {
+		if ( empty( $_SERVER['REQUEST_URI'] ) ) {
+			return;
+		}
+
+		$prefix = self::get_cache_url_path();
+
+		if ( '' === $prefix ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- The raw path is split and decoded segment by segment below.
+		$request = wp_unslash( $_SERVER['REQUEST_URI'] );
+		$path    = wp_parse_url( $request, PHP_URL_PATH );
+
+		if ( ! is_string( $path ) || 0 !== strpos( $path, $prefix ) ) {
+			return;
+		}
+
+		self::handle_cache_request( substr( $path, strlen( $prefix ) ) );
 	}
 
 	/**
-	 * Builds the signed URL that generates one cached image.
+	 * Returns the path component of the cache URL, with a trailing slash.
 	 *
-	 * @param string $source_key Source key from SFIR_Core::resolve_source().
-	 * @param array  $params     Normalised parameters.
 	 * @return string
 	 */
-	public static function build_generate_url( $source_key, array $params ) {
-		$normalized = SFIR_Core::params_to_string( $params );
+	public static function get_cache_url_path() {
+		$url = SFIR_Cache::get_cache_url();
 
-		return self::build_url(
-			array(
-				'sfir_generate' => 1,
-				'src'           => $source_key,
-				'p'             => $normalized,
-				's'             => SFIR_Security::sign( SFIR_Core::signature_payload( $source_key, $params ) ),
-			)
-		);
+		if ( '' === $url ) {
+			return '';
+		}
+
+		$path = wp_parse_url( $url, PHP_URL_PATH );
+
+		if ( ! is_string( $path ) || '' === $path ) {
+			return '';
+		}
+
+		return rtrim( $path, '/' ) . '/';
 	}
 
 	/**
-	 * Dispatches the request when it targets the endpoint.
+	 * Resolves, generates and serves one cache file.
 	 *
-	 * @param WP $wp Current WordPress environment instance.
+	 * @param string $relative_url Requested path relative to the cache root, still percent-encoded.
 	 * @return void
 	 */
-	public static function maybe_handle( $wp ) {
-		if ( ! isset( $wp->query_vars['sfir_generate'] ) && ! isset( $wp->query_vars['sfir_placeholder'] ) ) {
+	protected static function handle_cache_request( $relative_url ) {
+		$segments = SFIR_Core::decode_url_path( $relative_url );
+
+		if ( false === $segments ) {
+			SFIR_Logger::log( 'E01', 'Cache request with an unusable path.', $relative_url, '' );
+			self::serve_placeholder( 'E01', 0, 0, 404 );
 			return;
 		}
 
-		if ( isset( $wp->query_vars['sfir_placeholder'] ) ) {
-			self::handle_placeholder( (string) $wp->query_vars['sfir_placeholder'] );
+		$filename = array_pop( $segments );
+		$parsed   = SFIR_Core::parse_cache_filename( $filename );
+
+		if ( false === $parsed ) {
+			SFIR_Logger::log( 'E04', 'Cache request with a malformed file name.', $filename, '' );
+			self::serve_placeholder( 'E04', 0, 0, 404 );
 			return;
 		}
 
-		self::handle_generate();
-	}
+		$params = $parsed['params'];
 
-	/**
-	 * Serves a placeholder image.
-	 *
-	 * @param string $code   Error code.
-	 * @param int    $status HTTP status code to send.
-	 * @return void
-	 */
-	protected static function handle_placeholder( $code, $status = 200 ) {
-		// The endpoint is public and unauthenticated by design; the request only
-		// selects a whitelisted error code and two integers, so there is nothing
-		// to protect with a nonce.
-		// phpcs:disable WordPress.Security.NonceVerification.Recommended
-		$width  = isset( $_GET['w'] ) ? (int) $_GET['w'] : 0;
-		$height = isset( $_GET['h'] ) ? (int) $_GET['h'] : 0;
-		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+		$match = self::find_source( $segments, $parsed['stem'], $params, $parsed['hash'] );
 
-		self::serve_placeholder( $code, $width, $height, $status );
-	}
-
-	/**
-	 * Handles a generation request.
-	 *
-	 * @return void
-	 */
-	protected static function handle_generate() {
-		// Public, HMAC signed endpoint: the signature check below replaces the
-		// nonce, which cannot be used for anonymous, cacheable image requests.
-		// phpcs:disable WordPress.Security.NonceVerification.Recommended
-		$source_key = isset( $_GET['src'] ) ? sanitize_text_field( wp_unslash( $_GET['src'] ) ) : '';
-		$raw_params = isset( $_GET['p'] ) ? sanitize_text_field( wp_unslash( $_GET['p'] ) ) : '';
-		$signature  = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
-		// phpcs:enable WordPress.Security.NonceVerification.Recommended
-
-		$params = SFIR_Core::apply_format_support( SFIR_Core::parse_params( $raw_params ) );
-
-		if ( '' === $source_key || '' === $signature
-			|| ! SFIR_Security::verify( SFIR_Core::signature_payload( $source_key, $params ), $signature )
-		) {
-			SFIR_Logger::log( 'E04', 'Generation request rejected: invalid or missing signature.', $source_key, $params );
-			self::serve_placeholder( 'E04', $params['w'], $params['h'], 403 );
+		if ( '' !== $match['error'] ) {
+			SFIR_Logger::log(
+				$match['error'],
+				'E04' === $match['error']
+					? 'Cache request rejected: the file name carries an invalid signature.'
+					: 'Cache request could not find a source file.',
+				implode( '/', $segments ) . '/' . $filename,
+				$params
+			);
+			self::serve_placeholder( $match['error'], $params['w'], $params['h'], 'E04' === $match['error'] ? 403 : 404 );
 			return;
 		}
 
-		$resolved = SFIR_Core::resolve_source_key( $source_key );
-
-		if ( empty( $resolved['ok'] ) ) {
-			SFIR_Logger::log( $resolved['error'], 'Generation request could not resolve the source file.', $source_key, $params );
-			self::serve_placeholder( $resolved['error'], $params['w'], $params['h'] );
-			return;
-		}
+		$resolved = $match['resolved'];
 
 		$size = SFIR_Cache::get_source_size( $resolved['path'], $resolved['id'] );
 
 		if ( empty( $size['ok'] ) ) {
-			SFIR_Logger::log( $size['error'], 'Generation request received an unreadable source file.', $source_key, $params );
+			SFIR_Logger::log( $size['error'], 'Cache request received an unreadable source file.', $resolved['path'], $params );
 			self::serve_placeholder( $size['error'], $params['w'], $params['h'] );
 			return;
 		}
 
 		if ( ! SFIR_Cache::prepare_directories() ) {
-			SFIR_Logger::log( 'E06', 'Cache directory is not writable.', $source_key, $params );
+			SFIR_Logger::log( 'E06', 'Cache directory is not writable.', $resolved['path'], $params );
 			self::serve_placeholder( 'E06', $params['w'], $params['h'] );
 			return;
 		}
 
-		$geometry     = SFIR_Core::calculate_dimensions( $size['width'], $size['height'], $params );
-		$relative_dir = SFIR_Core::cache_relative_dir( $resolved );
-		$filename     = SFIR_Core::build_cache_filename( basename( $resolved['relative'] ), $params );
-		$cache_path   = SFIR_Cache::get_file_path( $relative_dir, $filename );
+		$cache_path = SFIR_Cache::get_file_path( implode( '/', $segments ), $filename );
 
 		if ( '' === $cache_path || ! self::is_inside_cache( $cache_path ) ) {
-			SFIR_Logger::log( 'E06', 'Refusing to write outside the cache directory.', $source_key, $params );
+			SFIR_Logger::log( 'E06', 'Refusing to write outside the cache directory.', $cache_path, $params );
 			self::serve_placeholder( 'E06', $params['w'], $params['h'] );
 			return;
 		}
 
 		if ( ! SFIR_Cache::make_dir( dirname( $cache_path ) ) ) {
-			SFIR_Logger::log( 'E06', 'Cache sub-directory could not be created.', $source_key, $params );
+			SFIR_Logger::log( 'E06', 'Cache sub-directory could not be created.', $cache_path, $params );
 			self::serve_placeholder( 'E06', $params['w'], $params['h'] );
 			return;
 		}
 
+		$geometry = SFIR_Core::calculate_dimensions( $size['width'], $size['height'], $params );
+
 		if ( ! SFIR_Resizer::can_process( $size['width'], $size['height'], $geometry['dst_w'], $geometry['dst_h'] ) ) {
-			SFIR_Logger::log( 'E07', 'Image too large to process within the memory limit.', $source_key, $params );
+			SFIR_Logger::log( 'E07', 'Image too large to process within the memory limit.', $resolved['path'], $params );
 			self::serve_placeholder( 'E07', $params['w'], $params['h'] );
 			return;
 		}
 
-		self::generate_with_lock( $cache_path, $resolved, $size, $params, $geometry, $source_key );
+		self::generate_with_lock( $cache_path, $resolved, $size, $params, $geometry );
+	}
+
+	/**
+	 * Finds the source file a cache file name refers to.
+	 *
+	 * The name only carries a sanitised stem, so the extension, and sometimes
+	 * the exact spelling, have to be recovered from the mirrored source
+	 * directory. The short HMAC decides which candidate is the right one, which
+	 * also means an unsigned name never resolves to anything.
+	 *
+	 * @param array  $segments Decoded directory segments below the cache root.
+	 * @param string $stem     Sanitised stem taken from the file name.
+	 * @param array  $params   Normalised parameters taken from the file name.
+	 * @param string $hash     Short HMAC taken from the file name.
+	 * @return array {
+	 *     Lookup result.
+	 *
+	 *     @type string $error    Empty on success, E04 for a bad signature, E01 when nothing was found.
+	 *     @type array  $resolved Resolved source, see SFIR_Core::resolve_source().
+	 * }
+	 */
+	protected static function find_source( array $segments, $stem, array $params, $hash ) {
+		$uploads  = wp_get_upload_dir();
+		$searched = false;
+
+		foreach ( self::get_source_roots( $segments, $uploads ) as $root ) {
+			$directory = rtrim( $root['base'], '/' );
+
+			if ( '' !== $root['dir'] ) {
+				$directory .= '/' . $root['dir'];
+			}
+
+			if ( ! is_dir( $directory ) ) {
+				continue;
+			}
+
+			foreach ( self::find_candidates( $directory, $stem ) as $candidate ) {
+				$searched = true;
+
+				$relative = '' === $root['dir'] ? $candidate : $root['dir'] . '/' . $candidate;
+				$key      = $root['root'] . ':' . $relative;
+
+				if ( ! SFIR_Security::verify_short_hash( SFIR_Core::signature_payload( $key, $params ), $hash ) ) {
+					continue;
+				}
+
+				$resolved = SFIR_Core::resolve_path( $directory . '/' . $candidate );
+
+				if ( empty( $resolved['ok'] ) || $resolved['key'] !== $key ) {
+					continue;
+				}
+
+				return array(
+					'error'    => '',
+					'resolved' => $resolved,
+				);
+			}
+		}
+
+		return array(
+			'error'    => $searched ? 'E04' : 'E01',
+			'resolved' => array(),
+		);
+	}
+
+	/**
+	 * Lists the roots a cache directory can be mirroring.
+	 *
+	 * @param array $segments Decoded directory segments below the cache root.
+	 * @param array $uploads  Result of wp_get_upload_dir().
+	 * @return array
+	 */
+	protected static function get_source_roots( array $segments, array $uploads ) {
+		$roots = array();
+
+		if ( ! empty( $uploads['basedir'] ) ) {
+			$roots[] = array(
+				'root' => SFIR_Core::ROOT_UPLOADS,
+				'base' => $uploads['basedir'],
+				'dir'  => implode( '/', $segments ),
+			);
+		}
+
+		if ( isset( $segments[0] ) && SFIR_Core::ABSPATH_CACHE_PREFIX === $segments[0] ) {
+			$roots[] = array(
+				'root' => SFIR_Core::ROOT_ABSPATH,
+				'base' => ABSPATH,
+				'dir'  => implode( '/', array_slice( $segments, 1 ) ),
+			);
+		}
+
+		return $roots;
+	}
+
+	/**
+	 * Lists the files of a directory whose sanitised stem matches.
+	 *
+	 * The usual extensions are probed first, so the common case costs a handful
+	 * of stat calls; the directory is only walked when none of them matches.
+	 *
+	 * @param string $directory Absolute path of the directory to look in.
+	 * @param string $stem      Sanitised stem to match.
+	 * @return string[] Candidate file names.
+	 */
+	protected static function find_candidates( $directory, $stem ) {
+		$candidates = array();
+
+		foreach ( array( 'jpg', 'jpeg', 'png', 'gif', 'webp', 'JPG', 'JPEG', 'PNG', 'GIF', 'WEBP' ) as $extension ) {
+			$name = $stem . '.' . $extension;
+
+			if ( is_file( $directory . '/' . $name ) ) {
+				$candidates[] = $name;
+			}
+		}
+
+		if ( ! empty( $candidates ) ) {
+			return $candidates;
+		}
+
+		// The stem lost characters on the way in: look for anything that
+		// sanitises down to the same string.
+		$entries = @scandir( $directory ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		if ( ! is_array( $entries ) ) {
+			return $candidates;
+		}
+
+		$scanned = 0;
+
+		foreach ( $entries as $entry ) {
+			if ( '.' === $entry || '..' === $entry ) {
+				continue;
+			}
+
+			++$scanned;
+
+			if ( $scanned > self::MAX_SCAN_ENTRIES ) {
+				break;
+			}
+
+			if ( ! is_file( $directory . '/' . $entry ) ) {
+				continue;
+			}
+
+			$dot  = strrpos( $entry, '.' );
+			$base = ( false !== $dot && $dot > 0 ) ? substr( $entry, 0, $dot ) : $entry;
+
+			if ( SFIR_Core::sanitize_name( $base ) === $stem ) {
+				$candidates[] = $entry;
+			}
+		}
+
+		return $candidates;
 	}
 
 	/**
@@ -212,10 +358,9 @@ class SFIR_Endpoint {
 	 * @param array  $size       Source dimensions and MIME type.
 	 * @param array  $params     Normalised parameters.
 	 * @param array  $geometry   Output geometry.
-	 * @param string $source_key Source key, for logging.
 	 * @return void
 	 */
-	protected static function generate_with_lock( $cache_path, array $resolved, array $size, array $params, array $geometry, $source_key ) {
+	protected static function generate_with_lock( $cache_path, array $resolved, array $size, array $params, array $geometry ) {
 		$lock_path = $cache_path . '.lock';
 
 		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_fopen
@@ -236,7 +381,7 @@ class SFIR_Endpoint {
 			@unlink( $lock_path );
 
 			if ( '' !== $error ) {
-				SFIR_Logger::log( $error, 'GD failed to generate the resized copy.', $source_key, $params );
+				SFIR_Logger::log( $error, 'GD failed to generate the resized copy.', $resolved['path'], $params );
 				self::serve_placeholder( $error, $params['w'], $params['h'] );
 				return;
 			}
@@ -307,17 +452,47 @@ class SFIR_Endpoint {
 		return 'webp' === $format ? 'image/webp' : 'image/jpeg';
 	}
 
+	// ---------------------------------------------------------------------
+	// The placeholder route.
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Serves a placeholder when the request asks for one.
+	 *
+	 * @param WP $wp Current WordPress environment instance.
+	 * @return void
+	 */
+	public static function maybe_handle_placeholder( $wp ) {
+		if ( ! isset( $wp->query_vars['sfir_placeholder'] ) ) {
+			return;
+		}
+
+		// The placeholder route is public and unauthenticated by design; it only
+		// selects a whitelisted error code and two integers, so there is nothing
+		// for a nonce to protect.
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended
+		$width  = isset( $_GET['w'] ) ? (int) $_GET['w'] : 0;
+		$height = isset( $_GET['h'] ) ? (int) $_GET['h'] : 0;
+		// phpcs:enable WordPress.Security.NonceVerification.Recommended
+
+		self::serve_placeholder( (string) $wp->query_vars['sfir_placeholder'], $width, $height );
+	}
+
+	// ---------------------------------------------------------------------
+	// Responses.
+	// ---------------------------------------------------------------------
+
 	/**
 	 * Sends a file to the browser and stops the request.
 	 *
-	 * @param string $path     Absolute path of the file to send.
-	 * @param string $mime     MIME type to announce.
+	 * @param string $path      Absolute path of the file to send.
+	 * @param string $mime      MIME type to announce.
 	 * @param bool   $cacheable Whether the response may be cached for a long time.
 	 * @return void
 	 */
 	protected static function serve_file( $path, $mime, $cacheable ) {
 		if ( ! is_file( $path ) || ! is_readable( $path ) ) {
-			self::serve_placeholder( 'E01', 0, 0 );
+			self::serve_placeholder( 'E01', 0, 0, 404 );
 			return;
 		}
 
@@ -330,6 +505,11 @@ class SFIR_Endpoint {
 		header( 'Content-Type: ' . $mime );
 		header( 'Content-Length: ' . $size );
 		header( 'X-Content-Type-Options: nosniff' );
+
+		// Marks the responses this plugin produced. A cached file is answered by
+		// the web server itself and never carries this header, which is what the
+		// admin self-check and the test suite look at.
+		header( 'X-SFIR: generated' );
 
 		if ( $mtime ) {
 			header( 'Last-Modified: ' . gmdate( 'D, d M Y H:i:s', $mtime ) . ' GMT' );
@@ -365,6 +545,7 @@ class SFIR_Endpoint {
 		header( 'Content-Type: image/svg+xml; charset=utf-8' );
 		header( 'Content-Length: ' . strlen( $svg ) );
 		header( 'X-Content-Type-Options: nosniff' );
+		header( 'X-SFIR: placeholder' );
 		header( 'Cache-Control: no-store, must-revalidate' );
 
 		echo $svg; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Built by SFIR_Placeholder::render(), which escapes every dynamic part.

@@ -4,7 +4,7 @@ Tags: images, resize, thumbnails, webp, performance
 Requires at least: 7.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -49,11 +49,25 @@ default `webp`), `q` (1–95, default 75), `bg` (three or six hex digits without
 `#`), `crop` (`0` or `1`, default `0`). Images are never enlarged. `crop=1` is
 ignored unless both `w` and `h` are set.
 
-= Where files are stored =
+= Where files are stored, and what the URLs look like =
 
-Generated copies live in
-`/wp-content/uploads/SFimageResizer/cache_images/`, mirroring the directory
-tree of the source files. Problems are recorded in
+`sf_img()` always returns the plain URL of the cached file, from the very first
+render:
+
+`/wp-content/uploads/SFimageResizer/cache_images/2026/08/photo-800x0-c0-q75-a3f9c1.webp`
+
+Generated copies mirror the directory tree of their sources under
+`/wp-content/uploads/SFimageResizer/cache_images/`. The file name is
+`{name}-{w}x{h}-c{crop}-q{q}[-bg{BG}]-{hash}.{format}`; the `bg` part appears
+only when a background colour was requested, and the hash is six hexadecimal
+characters of an HMAC over the source path and the parameters.
+
+While a copy does not exist yet, the request falls through to WordPress, which
+generates the file and returns it. Afterwards the web server answers it as a
+static file and PHP is no longer involved. The hash means only the sizes your
+own templates ask for can ever be created.
+
+Problems are recorded in
 `/wp-content/uploads/SFimageResizer/logs/error.log`.
 
 == Installation ==
@@ -86,10 +100,16 @@ configuration that denies direct access to
 
 `location ~* /wp-content/uploads/SFimageResizer/logs/ { deny all; }`
 
-= Why does the first page load return long URLs? =
-Copies that do not exist yet are requested through a signed generation URL.
-Each request creates one file. The next render of the page returns plain
-static URLs.
+= Do image URLs change between page loads? =
+No. The same plain URL is returned every time, whether the file exists yet or
+not.
+
+= What if my server does not pass missing files to WordPress? =
+Settings -> SFimageResizer runs a configuration check and tells you. Almost
+every host works out of the box: Apache is covered by the .htaccess the plugin
+writes, and the usual nginx configuration already ends in
+`try_files $uri $uri/ /index.php?$args`. If the check reports a problem, it
+shows the exact nginx location block to add.
 
 == Screenshots ==
 
@@ -97,10 +117,26 @@ static URLs.
 
 == Changelog ==
 
+= 1.1.0 =
+* `sf_img()` now always returns the plain URL of the cached file, from the
+  first call onwards. URLs no longer change between renders and carry no query
+  string.
+* The signature moved from the query string into the file name, as a six
+  character suffix.
+* Removed the `sfir-generate` endpoint and its rewrite rule.
+* Added a configuration check on the plugin screen that verifies missing cache
+  files reach WordPress, with a ready-made nginx snippet when they do not.
+* The cache `.htaccess` now also routes missing files to WordPress on Apache.
+
 = 1.0.0 =
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+Image URLs are now plain cache URLs from the first render. Existing cached
+files use the old naming scheme and become unused; clear the cache on the
+plugin screen to reclaim the space.
 
 = 1.0.0 =
 Initial release.

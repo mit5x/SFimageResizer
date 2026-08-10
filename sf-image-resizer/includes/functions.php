@@ -89,20 +89,22 @@ function sfir_prepare_uncached( $source, $params ) {
 		return sfir_prepare_failure( 'E02', $parsed );
 	}
 
+	$hash         = SFIR_Security::short_hash( SFIR_Core::signature_payload( $resolved['key'], $parsed ) );
 	$relative_dir = SFIR_Core::cache_relative_dir( $resolved );
-	$filename     = SFIR_Core::build_cache_filename( basename( $resolved['relative'] ), $parsed );
+	$filename     = SFIR_Core::build_cache_filename( basename( $resolved['relative'] ), $parsed, $hash );
 	$cache_path   = SFIR_Cache::get_file_path( $relative_dir, $filename );
 
-	if ( '' !== $cache_path && SFIR_Cache::is_fresh( $cache_path, $resolved['path'] ) ) {
-		$url = SFIR_Cache::get_file_url( $relative_dir, $filename );
-	} else {
-		$url = SFIR_Endpoint::build_generate_url( $resolved['key'], $parsed );
+	// The URL never changes: it is the cache file, whether or not it exists yet.
+	// A copy older than its source is removed here, so that the next browser
+	// request misses the static file and reaches the generator again.
+	if ( '' !== $cache_path && file_exists( $cache_path ) && ! SFIR_Cache::is_fresh( $cache_path, $resolved['path'] ) ) {
+		SFIR_Cache::delete_file( $cache_path );
 	}
 
 	return array(
 		'ok'     => true,
 		'error'  => '',
-		'url'    => esc_url_raw( $url ),
+		'url'    => esc_url_raw( SFIR_Cache::get_file_url( $relative_dir, $filename ) ),
 		'width'  => (int) $geometry['dst_w'],
 		'height' => (int) $geometry['dst_h'],
 	);

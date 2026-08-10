@@ -63,6 +63,7 @@ function sfir_uninstall_site() {
 
 	delete_option( 'sfir_secret' );
 	delete_option( 'sfir_logged_notices' );
+	delete_option( 'sfir_version' );
 
 	// Remove the source-dimension and admin-notice transients.
 	$like = $wpdb->esc_like( '_transient_sfir_' ) . '%';

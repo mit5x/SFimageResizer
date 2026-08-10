@@ -5,7 +5,10 @@
  * The integration suite needs a server that can serve both the static files of
  * a WordPress installation and its pretty permalinks. Start it with:
  *
- *   php -S 127.0.0.1:8899 -t /path/to/wordpress tests/integration/router.php
+ *   PHP_CLI_SERVER_WORKERS=6 php -S 127.0.0.1:8899 -t /path/to/wordpress tests/integration/router.php
+ *
+ * More than one worker is required: the admin self-check asks the site for one
+ * of its own URLs, and a single worker server would deadlock on that request.
  *
  * @package SFimageResizer
  */
