@@ -97,9 +97,77 @@
 			} );
 	}
 
+	/**
+	 * Copies the Markdown reference to the clipboard.
+	 */
+	function setUpCopyButton() {
+		var button = document.getElementById( 'sfir-copy-markdown' );
+
+		if ( ! button ) {
+			return;
+		}
+
+		button.addEventListener( 'click', function () {
+			var field = document.getElementById( button.getAttribute( 'data-target' ) );
+			var note = document.getElementById( 'sfir-copy-feedback' );
+
+			if ( ! field ) {
+				return;
+			}
+
+			function done( message ) {
+				if ( note ) {
+					note.textContent = message;
+					window.setTimeout( function () {
+						note.textContent = '';
+					}, 4000 );
+				}
+			}
+
+			if ( window.navigator.clipboard && window.navigator.clipboard.writeText ) {
+				window.navigator.clipboard
+					.writeText( field.value )
+					.then( function () {
+						done( settings.copied || '' );
+					} )
+					.catch( function () {
+						field.select();
+						done( settings.copyFailed || '' );
+					} );
+				return;
+			}
+
+			field.select();
+			done( settings.copyFailed || '' );
+		} );
+	}
+
+	/**
+	 * Applies the language choice as soon as it changes.
+	 */
+	function setUpLanguagePicker() {
+		var select = document.getElementById( 'sfir-locale' );
+
+		if ( ! select || ! select.form ) {
+			return;
+		}
+
+		var apply = document.getElementById( 'sfir-language-apply' );
+
+		if ( apply ) {
+			apply.classList.add( 'sfir-hidden' );
+		}
+
+		select.addEventListener( 'change', function () {
+			select.form.submit();
+		} );
+	}
+
 	document.addEventListener( 'DOMContentLoaded', function () {
 		confirmOn( 'sfir-clear-cache', settings.confirmCache );
 		confirmOn( 'sfir-clear-log', settings.confirmLog );
+		setUpCopyButton();
+		setUpLanguagePicker();
 		runCheck();
 	} );
 }() );

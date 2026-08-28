@@ -181,6 +181,108 @@ update_option( 'permalink_structure', $saved_structure );
 SFIR_Cache::flush_runtime_cache();
 
 /* ---------------------------------------------------------------------------
+ * 1e. sf_img_srcset(), the universal responsive helper.
+ * ------------------------------------------------------------------------ */
+
+SFIR_TestRunner::group( '1.2.0 sf_img_srcset' );
+
+SFIR_Cache::flush_runtime_cache();
+
+$srcset = sf_img_srcset( $jpeg_url );
+
+SFIR_TestRunner::check( '' !== $srcset, 'the helper returns a srcset', $srcset );
+
+$candidates = array_map( 'trim', explode( ',', $srcset ) );
+
+SFIR_TestRunner::equals( 6, count( $candidates ), 'a 2000x1000 source yields six candidates', wp_json_encode( $candidates ) );
+
+$descriptors = array();
+$urls        = array();
+
+foreach ( $candidates as $candidate ) {
+	$parts = explode( ' ', $candidate );
+
+	SFIR_TestRunner::check( 2 === count( $parts ), 'the candidate is "url NNNw"', $candidate );
+
+	$urls[]        = $parts[0];
+	$descriptors[] = $parts[1];
+}
+
+SFIR_TestRunner::equals(
+	array( '320w', '640w', '960w', '1280w', '1920w', '2000w' ),
+	$descriptors,
+	'descriptors carry the real widths, ascending, capped at the source width'
+);
+
+SFIR_TestRunner::equals( count( $urls ), count( array_unique( $urls ) ), 'every candidate has its own URL' );
+
+SFIR_TestRunner::check(
+	false === strpos( $srcset, '?' ) && false !== strpos( $srcset, '/cache_images/' ),
+	'the candidates are plain cache URLs'
+);
+
+// The widths really are what the descriptors claim.
+$checked = 0;
+
+foreach ( array( 0, 3, 5 ) as $index ) {
+	$response = sfir_http( sfir_test_url( $urls[ $index ] ) );
+	$info     = sfir_image_info( $response['body'] );
+	$expected = (int) rtrim( $descriptors[ $index ], 'w' );
+
+	if ( SFIR_TestRunner::check(
+		200 === $response['status'] && is_array( $info ) && $expected === $info['width'],
+		'candidate ' . $descriptors[ $index ] . ' really is ' . $expected . ' pixels wide',
+		wp_json_encode( $info )
+	) ) {
+		++$checked;
+	}
+}
+
+SFIR_TestRunner::equals( 3, $checked, 'the sampled candidates all matched' );
+
+SFIR_Cache::flush_runtime_cache();
+
+// A small source must not be padded with duplicates.
+$small_srcset    = sf_img_srcset( sfir_path_to_url( $fixtures['small'] ) );
+$small_candidates = array_map( 'trim', explode( ',', $small_srcset ) );
+
+SFIR_TestRunner::equals( 2, count( $small_candidates ), 'a 400x300 source yields only the widths it can fill', $small_srcset );
+SFIR_TestRunner::check( false !== strpos( $small_srcset, ' 320w' ), 'the small source offers 320w' );
+SFIR_TestRunner::check( false !== strpos( $small_srcset, ' 400w' ), 'the largest candidate is the source width' );
+SFIR_TestRunner::check( false === strpos( $small_srcset, ' 2560w' ), 'no candidate claims a width the source cannot fill' );
+
+// Parameters and custom ladders.
+SFIR_Cache::flush_runtime_cache();
+
+$jpg_srcset = sf_img_srcset( $jpeg_url, 'f=jpg&q=60' );
+
+SFIR_TestRunner::check( false !== strpos( $jpg_srcset, '-q60-' ) && false !== strpos( $jpg_srcset, '.jpg ' ), 'parameters reach the candidates', $jpg_srcset );
+
+$custom = sf_img_srcset( $jpeg_url, '', array( 500, 1000 ) );
+
+SFIR_TestRunner::equals( 2, count( explode( ',', $custom ) ), 'a custom ladder is honoured' );
+SFIR_TestRunner::check( false !== strpos( $custom, ' 500w' ) && false !== strpos( $custom, ' 1000w' ), 'the custom widths are used', $custom );
+
+// w, h and crop in the parameters must not disturb the ladder.
+$ignored = sf_img_srcset( $jpeg_url, 'w=100&h=100&crop=1', array( 500 ) );
+
+SFIR_TestRunner::check( false !== strpos( $ignored, ' 500w' ) && false !== strpos( $ignored, '-500x0-c0-' ), 'w, h and crop are ignored', $ignored );
+
+// A source that cannot be used yields nothing to put in the attribute.
+SFIR_TestRunner::equals( '', sf_img_srcset( '/nope/missing.jpg' ), 'an unusable source yields an empty string' );
+SFIR_TestRunner::equals( '', sf_img_srcset( sfir_path_to_url( $fixtures['text'] ) ), 'a text file yields an empty string' );
+SFIR_TestRunner::equals( '', sf_img_srcset( 'https://example.com/x.jpg' ), 'an external URL yields an empty string' );
+
+SFIR_Cache::flush_runtime_cache();
+
+// The helper agrees with the single-image functions.
+$first_url = explode( ' ', trim( explode( ',', sf_img_srcset( $jpeg_url ) )[0] ) )[0];
+
+SFIR_TestRunner::equals( sf_img( $jpeg_url, 'w=320' ), $first_url, 'a candidate is the same URL sf_img() would return' );
+
+SFIR_Cache::flush_runtime_cache();
+
+/* ---------------------------------------------------------------------------
  * 2. Every sizing rule, on real files.
  * ------------------------------------------------------------------------ */
 

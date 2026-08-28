@@ -49,3 +49,49 @@
 .sfir-wrap .sfir-hints summary {
 	cursor: pointer;
 }
+
+.sfir-wrap .sfir-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.sfir-wrap .sfir-language {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.sfir-wrap .sfir-tabs {
+	margin-bottom: 1.5em;
+}
+
+.sfir-wrap .sfir-markdown {
+	width: 100%;
+	max-width: 980px;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+	background: #fff;
+}
+
+.sfir-wrap .sfir-markdown-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.sfir-wrap .sfir-markdown-actions .button {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.sfir-wrap .sfir-copy-feedback {
+	color: #008a20;
+}
+
+.sfir-wrap .sfir-hidden {
+	display: none;
+}

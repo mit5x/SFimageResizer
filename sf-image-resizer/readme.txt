@@ -1,10 +1,10 @@
-=== SFimageResizer ===
+=== SF Image resizer ===
 Contributors: saytformat
 Tags: images, resize, thumbnails, webp, performance
 Requires at least: 7.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ On-demand image resizing, cropping and WebP/JPG conversion straight from your PH
 
 == Description ==
 
-SFimageResizer is built for developers who create custom WordPress themes.
+SF Image resizer is built for developers who create custom WordPress themes.
 Instead of registering dozens of image sizes, you request exactly the size,
 crop, quality and format you need, right where you need it:
 
@@ -23,8 +23,8 @@ crop, quality and format you need, right where you need it:
 * Sources: image URL, attachment ID, or an ACF image field.
 * Parameters: max width/height (no upscaling), center crop, WebP or JPG
   output, quality, background color for transparent images.
-* Helper functions for correct `width`/`height` attributes and full `<img>`
-  tags with `srcset` support.
+* Helper functions for correct `width`/`height` attributes, a ready made
+  responsive `srcset`, and full `<img>` tags.
 * Safe by design: local files only, signed generation URLs, strict parameter
   validation, graceful SVG placeholders on errors — a broken image never
   breaks your site.
@@ -40,6 +40,7 @@ to JPG output.
 * `sf_img( $source, $params = '' )` — URL of the resized copy. Output it with `esc_url()`.
 * `sf_img_width( $source, $params = '' )` — the width the copy will have, computed without generating it.
 * `sf_img_height( $source, $params = '' )` — the matching height.
+* `sf_img_srcset( $source, $params = '', $widths = array() )` — a complete `srcset` for 320, 640, 960, 1280, 1920 and 2560 pixels. Output it with `esc_attr()`.
 * `sf_img_tag( $source, $params = '', $attrs = array() )` — a complete, escaped `<img>` tag.
 
 = Parameters =
@@ -84,6 +85,12 @@ Problems are recorded in
 The plugin targets developers writing PHP templates. It does not integrate
 with visual builders.
 
+= How do I output a responsive image? =
+Use `sf_img_srcset()`. It builds the whole `srcset` at 320, 640, 960, 1280,
+1920 and 2560 pixels, so nothing has to be added to your theme's
+`functions.php`. Pair it with `sizes="auto"` and `loading="lazy"`. The
+Documentation tab on the plugin screen shows the full example.
+
 = Are animated GIFs supported? =
 The first frame is used; animation is not preserved in resized copies.
 
@@ -122,9 +129,25 @@ not, the check offers the nginx location block to add.
 
 == Screenshots ==
 
-1. The plugin screen: cache statistics, maintenance buttons and documentation.
+1. The Cache tab: statistics, the cache directory and the maintenance buttons.
+2. The Check and log tab: the configuration check and the error log.
+3. The Documentation tab: the functions, the parameters, worked examples and
+   the Markdown reference for an AI assistant.
 
 == Changelog ==
+
+= 1.2.0 =
+* Renamed the plugin to "SF Image resizer" so it reads better in the plugin list.
+* New template function `sf_img_srcset()`: a complete responsive `srcset` at
+  320, 640, 960, 1280, 1920 and 2560 pixels, skipping the widths the source is
+  too small for and labelling every candidate with the width it really has.
+* The plugin screen is now split into Cache, Check and log, and Documentation.
+* The screen is translated into Russian, Spanish, German, French, Italian,
+  Brazilian Portuguese and Simplified Chinese. It follows the WordPress
+  language by default, and a picker on the screen overrides it per user.
+* The Documentation tab carries a Markdown reference written for AI assistants,
+  with copy and download buttons.
+* Added a Settings link on the plugins list.
 
 = 1.1.1 =
 * The configuration check no longer calls the site from the server. That
@@ -152,6 +175,10 @@ not, the check offers the nginx location block to add.
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+Adds sf_img_srcset() for responsive images, a tabbed and translated settings
+screen, and a Markdown reference for AI assistants.
 
 = 1.1.1 =
 Fixes a false warning in the configuration check on hosts with bot protection.

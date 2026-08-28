@@ -1,16 +1,18 @@
 name: Release
 
-# Pushing a tag such as v1.0.0 builds the distributable archive and publishes
-# it as an asset of the matching GitHub Release. The archive is never
-# committed to the repository.
+# Two ways to publish, both ending in the same place:
+#
+#   * push a tag such as v1.2.0;
+#   * or run this workflow by hand from the Actions tab: pick the branch,
+#     type the version, and the tag is created for you.
 on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Existing tag to build and publish, for example v1.0.0'
+      version:
+        description: 'Version to release, with or without the leading v, for example 1.2.0. The tag is created on the branch selected above.'
         required: true
 
 permissions:
@@ -22,35 +24,48 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Resolve the tag
-        id: tag
+      - name: Resolve the version
+        id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG="${{ github.event.inputs.tag }}"
+          set -e
+
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="${INPUT_VERSION#v}"
           else
             TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#v}"
           fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::\"$VERSION\" is not a version number of the form 1.2.3."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.tag.outputs.tag }}
+          # A tag push checks out the tag; a manual run checks out the branch
+          # the run was started from, and the tag is created from it below.
+          fetch-depth: 0
 
-      - name: Check that the tag and the three version numbers agree
+      - name: Check that the version numbers agree
         env:
-          VERSION: ${{ steps.tag.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -e
           header=$( grep -oP '^ \* Version:\s+\K.+' sf-image-resizer/sf-image-resizer.php | tr -d '[:space:]' )
           constant=$( grep -oP "define\( 'SFIR_VERSION', '\K[^']+" sf-image-resizer/sf-image-resizer.php )
           stable=$( grep -oP '^Stable tag:\s+\K.+' sf-image-resizer/readme.txt | tr -d '[:space:]' )
 
-          echo "tag=$VERSION header=$header constant=$constant stable_tag=$stable"
+          echo "requested=$VERSION header=$header constant=$constant stable_tag=$stable"
 
           for value in "$header" "$constant" "$stable"; do
             if [ "$value" != "$VERSION" ]; then
-              echo "::error::Version mismatch. The tag says $VERSION but the plugin says header=$header constant=$constant stable_tag=$stable."
+              echo "::error::Version mismatch. The release says $VERSION but the plugin says header=$header constant=$constant stable_tag=$stable."
               exit 1
             fi
           done
@@ -60,9 +75,27 @@ jobs:
             exit 1
           fi
 
+      - name: Create the tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -e
+
+          if git rev-parse "refs/tags/$TAG" > /dev/null 2>&1; then
+            echo "Tag $TAG already exists, reusing it."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "SF Image resizer ${{ steps.version.outputs.version }}"
+          git push origin "$TAG"
+
       - name: Build the archive
         env:
-          VERSION: ${{ steps.tag.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -e
           zip -r -q "SFimageResizer-${VERSION}.zip" sf-image-resizer \
@@ -71,7 +104,7 @@ jobs:
 
       - name: Verify the archive
         env:
-          VERSION: ${{ steps.tag.outputs.version }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -e
           ARCHIVE="SFimageResizer-${VERSION}.zip"
@@ -95,15 +128,15 @@ jobs:
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
-          VERSION: ${{ steps.tag.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -e
           ARCHIVE="SFimageResizer-${VERSION}.zip"
           SHA=$( sha256sum "$ARCHIVE" | cut -d' ' -f1 )
 
           {
-            echo "Installable archive of SFimageResizer ${VERSION}."
+            echo "Installable archive of SF Image resizer ${VERSION}."
             echo
             echo "Upload \`${ARCHIVE}\` on **Plugins → Add New → Upload Plugin**, or install it with WP-CLI:"
             echo
@@ -121,6 +154,6 @@ jobs:
           else
             gh release create "$TAG" "$ARCHIVE" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "SFimageResizer ${VERSION}" \
+              --title "SF Image resizer ${VERSION}" \
               --notes-file release-notes.md
           fi

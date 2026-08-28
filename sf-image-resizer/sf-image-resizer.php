@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name:       SFimageResizer
+ * Plugin Name:       SF Image resizer
  * Plugin URI:        https://web-format.net
  * Description:       On-demand image resizing, cropping and WebP/JPG conversion for theme developers, straight from PHP templates, with automatic disk caching.
- * Version:           1.1.1
+ * Version:           1.2.0
  * Requires at least: 7.0
  * Requires PHP:      7.4
  * Author:            saytformat
@@ -21,7 +21,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Plugin version.
  */
-define( 'SFIR_VERSION', '1.1.1' );
+define( 'SFIR_VERSION', '1.2.0' );
 
 /**
  * Absolute path to the main plugin file.
@@ -43,6 +43,7 @@ define( 'SFIR_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
  */
 defined( 'SFIR_MAX_DIMENSION' ) || define( 'SFIR_MAX_DIMENSION', 5000 );
 
+require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-i18n.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-core.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-logger.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-security.php';
@@ -71,9 +72,11 @@ function sfir_bootstrap() {
 	SFIR_Endpoint::init();
 
 	if ( is_admin() ) {
+		SFIR_I18n::init();
 		SFIR_Admin::init();
 		SFIR_Diagnostics::init();
 		add_action( 'admin_init', 'sfir_maybe_upgrade' );
+		add_filter( 'plugin_action_links_' . plugin_basename( __FILE__ ), 'sfir_plugin_action_links' );
 	}
 }
 add_action( 'plugins_loaded', 'sfir_bootstrap' );
@@ -99,6 +102,24 @@ function sfir_maybe_upgrade() {
 	flush_rewrite_rules();
 
 	update_option( SFIR_VERSION_OPTION, SFIR_VERSION, true );
+}
+
+/**
+ * Adds a link to the settings screen on the plugins list.
+ *
+ * @param string[] $links Action links shown for this plugin.
+ * @return string[]
+ */
+function sfir_plugin_action_links( $links ) {
+	$settings = sprintf(
+		'<a href="%s">%s</a>',
+		esc_url( admin_url( 'options-general.php?page=' . SFIR_Admin::PAGE_SLUG ) ),
+		esc_html__( 'Settings', 'sf-image-resizer' )
+	);
+
+	array_unshift( $links, $settings );
+
+	return $links;
 }
 
 /**

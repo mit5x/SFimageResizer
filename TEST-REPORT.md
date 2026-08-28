@@ -2,14 +2,14 @@
 
 | | |
 |---|---|
-| Plugin version | 1.1.1 |
+| Plugin version | 1.2.0 |
 | WordPress used for testing | 7.0.3 (current stable branch at the time of writing) |
 | `Requires at least` / `Tested up to` | 7.0 |
 | `Requires PHP` | 7.4 (the minimum WordPress 7.0 itself requires) |
 | PHP used for testing | 8.4.19, GD with WebP support |
 | Database | SQLite, through the official *SQLite Database Integration* drop-in |
 | Web server | PHP built-in server, pretty permalinks enabled (`/%postname%/`) |
-| Date | 2026-08-10 |
+| Date | 2026-08-28 |
 | Web server note | `PHP_CLI_SERVER_WORKERS=6`, so the admin self-check can call the site over loopback |
 
 ## 1. Summary
@@ -17,10 +17,10 @@
 | Suite | Checks | Passed | Failed |
 |---|---:|---:|---:|
 | 11.1 Standalone unit tests (PHPUnit, no WordPress) | 47 tests / 261 assertions | 47 | 0 |
-| 11.2 Integration suite (`run.php`) | 120 | 120 | 0 |
-| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 86 | 86 | 0 |
+| 11.2 Integration suite (`run.php`) | 147 | 147 | 0 |
+| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 136 | 136 | 0 |
 | 11.2.12 WebP fallback (`webp-fallback.php`) | 8 | 8 | 0 |
-| 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 26 | 26 | 0 |
+| 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 28 | 28 | 0 |
 | PHPCS with the `WordPress` ruleset + `PHPCompatibilityWP` | — | 0 errors, 0 warnings | 0 |
 | 11.3 Plugin Check, all categories, including experimental | — | 0 errors, 0 warnings | 0 |
 
@@ -88,17 +88,22 @@ attachment-ID path is exercised.
 | 11.2.10 Clear cache: with and without nonce | `11.2.10 clear cache` | 7 | pass |
 | 11.2.10 Log viewer, escaping, clear log with and without nonce | `11.2.10 log viewer` | 12 | pass |
 | 11.2.10 Documentation and local-only assets | `11.2.10 documentation and assets` | 14 | pass |
-| — Self-check level 1: real traffic records the confirmation, throttled | `self-check level 1: real traffic` | 8 | pass |
+| — Self-check level 1: real traffic records the confirmation, throttled | `self-check level 1: real traffic` | 7 | pass |
 | — Self-check level 1: the screen shows it and warns about nothing | `self-check level 1: what the screen shows` | 7 | pass |
 | — Self-check level 2: the browser probe and its collapsed hints | `self-check level 2: the browser probe` | 11 | pass |
-| — Self-check: the confirmation endpoint, capability and nonce | `self-check: the confirmation endpoint` | 10 | pass |
+| — Self-check: the confirmation endpoint, capability and nonce | `self-check: the confirmation endpoint` | 9 | pass |
 | — Self-check: "check again" resets the confirmation | `self-check: reset` | 5 | pass |
 | — Directory protection files and no directory listing | `directory protection` | 7 | pass |
+| 1.2.0 `sf_img_srcset()`: widths, descriptors, no upscaling, dedupe | `1.2.0 sf_img_srcset` | 27 | pass |
+| 1.2.0 The three tabs and what each one carries | `1.2.0 tabs` | 12 | pass |
+| 1.2.0 Language picker, seven locales, per-user memory | `1.2.0 language` | 28 | pass |
+| 1.2.0 The Markdown reference, copy button and download | `1.2.0 markdown reference` | 7 | pass |
+| 1.2.0 The "Settings" link in the plugins list | `1.2.0 plugins list` | 3 | pass |
 | 11.2.11 Log rotation past 2 MB | `11.2.11 log rotation` | 6 | pass |
 | 11.2.12 WebP fallback with `imagewebp()` disabled | `11.2.12 webp fallback` | 8 | pass |
 | 11.2.13 Activation | `11.2.13 activation` | 12 | pass |
 | 11.2.13 Deactivation keeps everything | `11.2.13 deactivation` | 6 | pass |
-| 11.2.13 Uninstall removes everything | `11.2.13 uninstall` | 8 | pass |
+| 11.2.13 Uninstall removes everything | `11.2.13 uninstall` | 10 | pass |
 
 ### Notes on how a few cases were verified
 
@@ -157,16 +162,35 @@ attachment-ID path is exercised.
   returns false. The output becomes JPG, the cache file gets a `.jpg`
   extension, and exactly one notice reaches the log no matter how many WebP
   requests are made.
+* **1.2.0 `sf_img_srcset()`.** The helper is checked against the 2000×1000
+  fixture and against the 400×300 one. The assertions are: six candidates for a
+  large enough source; every candidate a plain cache URL that really resolves to
+  an image of the width its `w` descriptor claims; the list sorted ascending;
+  widths the source is too small for dropped rather than upscaled, so the small
+  fixture yields a single 400w candidate instead of six identical ones; a custom
+  width list honoured; `f`, `q` and `bg` carried over from `$params` while `h`
+  and `crop` are forced off; and an unusable source giving an empty string
+  rather than a broken attribute.
+* **1.2.0 tabs and language.** Each tab is requested over HTTP and asserted to
+  carry its own content and not the others'. The language POST is submitted with
+  a nonce for all seven locales; after each one the screen is re-fetched and
+  checked for a string that only exists in that translation, and the choice is
+  read back from user meta. Posting an empty locale deletes the meta and the
+  screen returns to English. A locale that is not on the list is refused.
+* **1.2.0 the Markdown reference.** The documentation tab is asserted to carry
+  the field, the copy button and the download link, and the `.md` file is
+  fetched over HTTP and compared byte for byte with what the screen shows.
 
 ## 4. PHPCS / WordPress Coding Standards
 
 ```
-$ phpcs --standard=phpcs.xml.dist --report=summary
+$ phpcs --standard=phpcs.xml.dist --parallel=1 --report=summary
+............. 13 / 13 (100%)
 
-Time: 679ms; Memory: 14MB
+Time: 1.5 secs; Memory: 28MB
 ```
 
-All 12 PHP files of the plugin are inspected, with no errors and no warnings. The ruleset (`phpcs.xml.dist`) is `WordPress` plus
+All 13 PHP files of the plugin are inspected, with no errors and no warnings. The ruleset (`phpcs.xml.dist`) is `WordPress` plus
 `PHPCompatibilityWP` with `testVersion` set to `7.4-`, so PHP 7.4 through the
 current release are all checked.
 
@@ -182,6 +206,9 @@ exclusions in the ruleset.
 | `WordPress.Security.NonceVerification.Recommended` | `class-sfir-endpoint.php` | The cache and placeholder routes are public, anonymous and cacheable, so a nonce is impossible. The cache route is protected by the HMAC in the file name, which is verified before any file is written. |
 | `WordPress.Security.ValidatedSanitizedInput.InputNotSanitized` | `class-sfir-endpoint.php` | `REQUEST_URI` is not sanitised as a string; it is split on `/`, each segment decoded on its own and refused unless it survives traversal, null byte and separator checks. |
 | `WordPress.Security.EscapeOutput.OutputNotEscaped` | `class-sfir-endpoint.php` (placeholder SVG), `class-sfir-admin.php` (form action) | The SVG is produced by `SFIR_Placeholder::render()`, which escapes every dynamic part; the form action is passed through `esc_url()` one line earlier. |
+| `WordPress.Security.NonceVerification.Missing` | `class-sfir-admin.php`, `handle_language()` | The nonce and `manage_options` are both checked by `verify_request()` on the line above; the sniff cannot follow the call into that helper. The two fields it covers are sanitised and then validated against fixed lists. |
+| `WordPress.Security.NonceVerification.Recommended` | `class-sfir-admin.php`, `get_current_tab()` | The tab name selects which part of a read-only screen to draw and changes nothing, so a nonce would serve no purpose. The value is refused unless it is one of the three known tabs. |
+| `WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents` | `class-sfir-admin.php`, `get_markdown()` | Reads `docs/sf-image-resizer.md` from the plugin directory. It is a local file shipped with the plugin, not a remote request, and the path is a constant. |
 
 ## 5. Plugin Check (spec 11.3)
 
@@ -254,6 +281,14 @@ The script runs, in order: PHPUnit, PHPCS, the integration suite, the admin
 suite, the WebP fallback suite, the lifecycle suite and Plugin Check. It exits
 non-zero if any step fails.
 
+The admin suite leaves the language of the screen where it found it, but it
+does switch through all seven locales while it runs. Start it with no stored
+choice for the test administrator:
+
+```bash
+wp eval 'delete_user_meta( 1, "sfir_admin_locale" );'
+```
+
 Individual suites can also be run directly:
 
 ```bash
@@ -324,3 +359,24 @@ completeness.
    Normal page loads never need it (each request is a fresh process); it is
    used by long-running CLI processes and by the test suite, which simulates
    many page renders inside one process.
+12. **Translations are loaded by full path (1.2.0).** The screen may have to be
+    drawn in a language other than the one WordPress determined, and
+    `load_plugin_textdomain()` cannot override a domain that is already loaded.
+    `SFIR_I18n::load_textdomain()` therefore calls
+    `unload_textdomain( $domain, true )` — the `true` matters, the default marks
+    the domain as not reloadable — and then `load_textdomain()` with the full
+    path of the `.mo` file. This is done while the screen renders, which is
+    after `init`, so the just-in-time loading notice of WordPress 6.7 cannot
+    trigger. Only this text domain is affected; the rest of the admin keeps the
+    site language.
+13. **`sf_img_srcset()` labels each candidate with its real width (1.2.0).**
+    Because images are never enlarged, a requested width larger than the source
+    yields a file of the source width. The descriptor states the width the file
+    actually has, and duplicates are dropped, so a 400-pixel source produces a
+    single `400w` candidate rather than six identical ones. A source that cannot
+    be processed at all yields an empty string, so the template emits no
+    `srcset` attribute rather than a broken one.
+14. **The language choice is stored per user, not per site.** It is a reading
+    preference for one screen, so it lives in user meta (`sfir_admin_locale`)
+    and is removed with the rest of the plugin's data on uninstall. Two
+    administrators can read the same screen in different languages.

@@ -343,6 +343,19 @@ function sfir_forget_options() {
 }
 
 /**
+ * Drops the cached user meta of a user.
+ *
+ * The web server writes the meta, this process reads it; without dropping the
+ * cache the value this process read earlier would be returned again.
+ *
+ * @param int $user_id User to forget.
+ * @return void
+ */
+function sfir_forget_user_meta( $user_id ) {
+	wp_cache_delete( (int) $user_id, 'user_meta' );
+}
+
+/**
  * Reads the settings wp_localize_script() printed for the admin script.
  *
  * @param string $html Page markup.

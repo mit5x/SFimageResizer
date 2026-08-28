@@ -66,6 +66,9 @@ function sfir_uninstall_site() {
 	delete_option( 'sfir_version' );
 	delete_option( 'sfir_pretty_urls_confirmed' );
 
+	// Remove the per-administrator language choice for the plugin screen.
+	delete_metadata( 'user', 0, 'sfir_admin_locale', '', true );
+
 	// Remove the source-dimension and admin-notice transients.
 	$like = $wpdb->esc_like( '_transient_sfir_' ) . '%';
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

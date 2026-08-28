@@ -184,6 +184,101 @@ if ( ! function_exists( 'sf_img_height' ) ) {
 	}
 }
 
+if ( ! function_exists( 'sf_img_srcset' ) ) {
+	/**
+	 * Returns a ready to use srcset for an image.
+	 *
+	 * Produces one candidate per width in the ladder, skipping the ones the
+	 * source is too small for. The descriptor of every candidate is the width
+	 * the file really has, never the width that was asked for, so a browser is
+	 * never told that a 1600 pixel copy is 2560 pixels wide.
+	 *
+	 * Pair it with `sizes="auto"` and `loading="lazy"`, or with a `sizes` value
+	 * of your own, and put whatever you like in `src`.
+	 *
+	 * @param mixed        $source Image URL on this site, attachment ID, or an ACF image array.
+	 * @param string|array $params Extra parameters, for example 'q=80&f=jpg'. Any w or h is ignored.
+	 * @param int[]        $widths Widths to offer. Defaults to 320, 640, 960, 1280, 1920 and 2560.
+	 * @return string The srcset value, escaped for use in an attribute by esc_attr(), or an empty string.
+	 */
+	function sf_img_srcset( $source, $params = '', $widths = array() ) {
+		if ( empty( $widths ) || ! is_array( $widths ) ) {
+			$widths = sfir_default_srcset_widths();
+		}
+
+		$base = SFIR_Core::parse_params( $params );
+
+		$candidates = array();
+		$seen       = array();
+
+		foreach ( $widths as $width ) {
+			$width = (int) $width;
+
+			if ( $width < 1 ) {
+				continue;
+			}
+
+			$variant = sfir_srcset_variant_params( $base, $width );
+
+			$prepared = sfir_prepare( $source, $variant );
+
+			if ( empty( $prepared['ok'] ) ) {
+				return '';
+			}
+
+			$real = (int) $prepared['width'];
+
+			// The plugin never enlarges, so once the source runs out the widths
+			// start repeating. Keeping them would lie about the file's size.
+			if ( $real < 1 || isset( $seen[ $real ] ) ) {
+				continue;
+			}
+
+			$seen[ $real ]       = true;
+			$candidates[ $real ] = $prepared['url'] . ' ' . $real . 'w';
+		}
+
+		if ( empty( $candidates ) ) {
+			return '';
+		}
+
+		ksort( $candidates );
+
+		return implode( ', ', $candidates );
+	}
+}
+
+/**
+ * Returns the default width ladder of sf_img_srcset().
+ *
+ * @internal
+ *
+ * @return int[]
+ */
+function sfir_default_srcset_widths() {
+	return array( 320, 640, 960, 1280, 1920, 2560 );
+}
+
+/**
+ * Builds the parameters of one srcset candidate.
+ *
+ * @internal
+ *
+ * @param array $base  Normalised parameters shared by every candidate.
+ * @param int   $width Width of this candidate.
+ * @return array
+ */
+function sfir_srcset_variant_params( array $base, $width ) {
+	return array(
+		'w'    => (int) $width,
+		'h'    => 0,
+		'f'    => $base['f'],
+		'q'    => $base['q'],
+		'bg'   => $base['bg'],
+		'crop' => 0,
+	);
+}
+
 if ( ! function_exists( 'sf_img_tag' ) ) {
 	/**
 	 * Returns a complete, escaped <img> tag.

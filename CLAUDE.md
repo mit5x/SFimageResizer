@@ -21,9 +21,11 @@ asset, or a locally built zip that stays untracked.
 ## Releasing
 
 Follow `BUILD.md`. In short: bump the version in the three places that must
-agree, add the changelog entry, push, then push a `vX.Y.Z` tag. The workflow
-does the rest and refuses to publish if the versions disagree or the archive
-contains development files.
+agree, add the changelog entry, push, then release it — either from
+**Actions → Release → Run workflow**, which creates the tag on the branch you
+pick, or by pushing a `vX.Y.Z` tag by hand. The workflow does the rest and
+refuses to publish if the versions disagree or the archive contains
+development files.
 
 ## Before pushing any change to the plugin
 
@@ -48,18 +50,26 @@ section 6 of `TEST-REPORT.md`, then run `tests/run-tests.sh`.
   Do not use syntax newer than PHP 7.4. `phpcs.xml.dist` enforces this through
   `PHPCompatibilityWP` with `testVersion` set to `7.4-`.
 * Prefix everything global: `sfir_` for functions, `SFIR_` for classes and
-  constants, `sfir_` for options and transients. The four documented template
-  helpers `sf_img`, `sf_img_width`, `sf_img_height` and `sf_img_tag` are the
-  only exception, and each is wrapped in `function_exists()`.
+  constants, `sfir_` for options, transients and user meta. The five documented
+  template helpers `sf_img`, `sf_img_srcset`, `sf_img_width`, `sf_img_height`
+  and `sf_img_tag` are the only exception, and each is wrapped in
+  `function_exists()`.
 * Every PHP file starts with `defined( 'ABSPATH' ) || exit;`
   (`uninstall.php` uses `defined( 'WP_UNINSTALL_PLUGIN' ) || exit;`).
 * Every user-visible string is translatable with the `sf-image-resizer` text
-  domain. Regenerate `languages/sf-image-resizer.pot` when strings change.
+  domain. When strings change, regenerate `languages/sf-image-resizer.pot`,
+  update all seven `.po` files and recompile the `.mo` files; the screen has a
+  language picker and a half-translated locale shows through immediately.
 * Escape on output: `esc_html()`, `esc_attr()`, `esc_url()`, `esc_textarea()`.
 * Admin actions are POST + nonce + `current_user_can( 'manage_options' )`.
 * No external HTTP requests, no tracking, no CDN assets, no bundled binaries.
 * GD only. No Imagick, no AVIF, no S3/CDN, no REST API, no page builder
   integrations, no settings beyond the ones already on the admin screen.
+* The admin screen has exactly three tabs: Cache, Check and log, Documentation.
+  New material goes into one of them rather than into a fourth.
+* `docs/sf-image-resizer.md` is what the Documentation tab hands out for an AI
+  assistant to read. Keep it in step with the functions and their parameters:
+  a stale reference makes an assistant write markup that does not work.
 * A broken image must never break a page: failures degrade to an SVG
   placeholder with an error code plus one log line.
 

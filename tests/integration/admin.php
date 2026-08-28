@@ -23,6 +23,8 @@ $user      = getenv( 'SFIR_ADMIN_USER' ) ? getenv( 'SFIR_ADMIN_USER' ) : 'admin'
 $password  = getenv( 'SFIR_ADMIN_PASS' ) ? getenv( 'SFIR_ADMIN_PASS' ) : 'admin123';
 define( 'SFIR_TEST_COOKIES', tempnam( sys_get_temp_dir(), 'sfir-cookies-' ) );
 $page_url  = $base_url . '/wp-admin/options-general.php?page=sf-image-resizer';
+$check_url = $page_url . '&tab=check';
+$docs_url  = $page_url . '&tab=documentation';
 $post_url  = $base_url . '/wp-admin/admin-post.php';
 
 /**
@@ -256,7 +258,7 @@ SFIR_TestRunner::check( SFIR_Diagnostics::get_confirmed_at() > $confirmed - DAY_
 
 SFIR_TestRunner::group( 'self-check level 1: what the screen shows' );
 
-$page = sfir_admin_request( $page_url );
+$page = sfir_admin_request( $check_url );
 
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'Configuration check' ), 'the page shows the configuration check' );
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'Pretty URLs are working.' ), 'the page reports that pretty URLs work' );
@@ -273,7 +275,7 @@ SFIR_TestRunner::group( 'self-check level 2: the browser probe' );
 
 SFIR_Diagnostics::reset();
 
-$page = sfir_admin_request( $page_url );
+$page = sfir_admin_request( $check_url );
 
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'Not confirmed automatically yet' ), 'without a confirmation the page says so plainly' );
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'does not mean anything is broken' ), 'the wording avoids claiming a fault' );
@@ -283,7 +285,7 @@ SFIR_TestRunner::check( false !== strpos( $page['body'], '<details class="sfir-h
 $probe_urls = array();
 
 for ( $i = 0; $i < 2; $i++ ) {
-	$settings = sfir_admin_settings( sfir_admin_request( $page_url )['body'] );
+	$settings = sfir_admin_settings( sfir_admin_request( $check_url )['body'] );
 
 	if ( ! empty( $settings['probeUrl'] ) ) {
 		$probe_urls[] = $settings['probeUrl'];
@@ -388,7 +390,7 @@ if ( ! is_wp_error( $editor_id ) || 'existing_user_login' === $editor_id->get_er
 	unlink( $subscriber_cookies );
 }
 
-$settings = sfir_admin_settings( sfir_admin_request( $page_url )['body'] );
+$settings = sfir_admin_settings( sfir_admin_request( $check_url )['body'] );
 $nonce    = isset( $settings['nonce'] ) ? $settings['nonce'] : '';
 
 SFIR_TestRunner::check( '' !== $nonce, 'the page hands a nonce to the browser check' );
@@ -418,7 +420,7 @@ SFIR_TestRunner::equals(
 
 SFIR_TestRunner::group( 'self-check: reset' );
 
-$page  = sfir_admin_request( $page_url );
+$page  = sfir_admin_request( $check_url );
 $nonce = sfir_form_nonce( $page['body'], 'sfir_recheck' );
 
 SFIR_TestRunner::check( '' !== $nonce, 'the re-check form carries a nonce' );
@@ -469,7 +471,7 @@ for ( $i = 1; $i <= 60; $i++ ) {
 
 file_put_contents( $log_file, $lines );
 
-$page = sfir_admin_request( $page_url );
+$page = sfir_admin_request( $check_url );
 
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'marker-1 ' ), 'the log viewer shows the first line' );
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'marker-50 ' ), 'the log viewer shows the 50th line' );
@@ -479,7 +481,7 @@ SFIR_TestRunner::check( false !== strpos( $page['body'], '<textarea class="sfir-
 // The log content must be escaped before it reaches the page.
 file_put_contents( $log_file, "[2026-01-01 00:00:00] [E01] <script>alert(1)</script> | source=x | params=y\n" );
 
-$page = sfir_admin_request( $page_url );
+$page = sfir_admin_request( $check_url );
 
 SFIR_TestRunner::check( false === strpos( $page['body'], '<script>alert(1)</script>' ), 'log content is escaped' );
 SFIR_TestRunner::check( false !== strpos( $page['body'], '&lt;script&gt;' ), 'log content is escaped as entities' );
@@ -519,7 +521,7 @@ clearstatcache();
 SFIR_TestRunner::equals( 302, $with_nonce['status'], 'a signed clear-log POST redirects back to the page' );
 SFIR_TestRunner::equals( 0, filesize( $log_file ), 'the signed request emptied the log' );
 
-$after = sfir_admin_request( $page_url );
+$after = sfir_admin_request( $check_url );
 
 SFIR_TestRunner::check(
 	false !== strpos( $after['body'], 'The error log has been cleared.' ),
@@ -532,7 +534,7 @@ SFIR_TestRunner::check(
 
 SFIR_TestRunner::group( '11.2.10 documentation and assets' );
 
-$page = sfir_admin_request( $page_url );
+$page = sfir_admin_request( $docs_url );
 
 foreach ( array( 'sf_img(', 'sf_img_width(', 'sf_img_height(', 'sf_img_tag(', 'E07', 'crop', 'WebP fallback', 'How the URL is built', '{hash}' ) as $needle ) {
 	SFIR_TestRunner::check( false !== strpos( $page['body'], $needle ), 'the documentation mentions ' . $needle );
@@ -553,6 +555,194 @@ foreach ( array( '/wp-content/plugins/sf-image-resizer/admin/assets/css/admin.cs
 	SFIR_TestRunner::check( false !== strpos( $page['body'], $asset ), 'the local asset is enqueued: ' . basename( $asset ) );
 	SFIR_TestRunner::equals( 200, sfir_http( $base_url . $asset )['status'], 'the local asset is served: ' . basename( $asset ) );
 }
+
+/* --------------------------------------------------------------------------
+ * Tabs.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.2.0 tabs' );
+
+$page = sfir_admin_request( $page_url );
+
+foreach ( array( 'Cache', 'Check and log', 'Documentation' ) as $label ) {
+	SFIR_TestRunner::check(
+		(bool) preg_match( '#<a href="[^"]*"\s*class="nav-tab[^"]*">\s*' . preg_quote( $label, '#' ) . '#', $page['body'] ),
+		'the screen offers the "' . $label . '" tab'
+	);
+}
+
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Cached files' ), 'the cache tab is the default' );
+SFIR_TestRunner::check( false === strpos( $page['body'], 'Configuration check' ), 'the cache tab does not carry the check' );
+SFIR_TestRunner::check( false === strpos( $page['body'], 'Error codes' ), 'the cache tab does not carry the documentation' );
+
+$check_page = sfir_admin_request( $check_url );
+SFIR_TestRunner::check( false !== strpos( $check_page['body'], 'Configuration check' ), 'the check tab carries the check' );
+SFIR_TestRunner::check( false !== strpos( $check_page['body'], 'Error log' ), 'the check tab carries the log' );
+SFIR_TestRunner::check( false === strpos( $check_page['body'], 'Cached files' ), 'the check tab does not carry the statistics' );
+
+$docs_page = sfir_admin_request( $docs_url );
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'Error codes' ), 'the documentation tab carries the documentation' );
+SFIR_TestRunner::check( false === strpos( $docs_page['body'], 'Cached files' ), 'the documentation tab does not carry the statistics' );
+
+$unknown = sfir_admin_request( $page_url . '&tab=nonsense' );
+SFIR_TestRunner::check( false !== strpos( $unknown['body'], 'Cached files' ), 'an unknown tab falls back to the cache tab' );
+
+/* --------------------------------------------------------------------------
+ * The language picker.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.2.0 language' );
+
+delete_user_meta( 1, SFIR_I18n::USER_META );
+
+$page = sfir_admin_request( $page_url );
+
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'id="sfir-locale"' ), 'the screen carries a language picker' );
+
+foreach ( array( 'ru_RU', 'es_ES', 'de_DE', 'fr_FR', 'it_IT', 'pt_BR', 'zh_CN' ) as $locale ) {
+	SFIR_TestRunner::check(
+		false !== strpos( $page['body'], 'value="' . $locale . '"' ),
+		'the picker offers ' . $locale
+	);
+	SFIR_TestRunner::check(
+		is_readable( SFIR_PLUGIN_DIR . 'languages/sf-image-resizer-' . $locale . '.mo' ),
+		'a compiled translation ships for ' . $locale
+	);
+}
+
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Cached files' ), 'the untranslated screen is English by default' );
+
+$no_nonce = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => 'action=sfir_language&sfir_locale=ru_RU',
+	)
+);
+
+SFIR_TestRunner::equals( 403, $no_nonce['status'], 'a language change without a nonce is refused' );
+
+$nonce = sfir_form_nonce( $page['body'], 'sfir_language' );
+
+SFIR_TestRunner::check( '' !== $nonce, 'the language form carries a nonce' );
+
+$switched = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'      => 'sfir_language',
+				'_wpnonce'    => $nonce,
+				'sfir_locale' => 'ru_RU',
+				'sfir_tab'    => 'check',
+			)
+		),
+	)
+);
+
+SFIR_TestRunner::equals( 302, $switched['status'], 'a signed language change redirects back' );
+SFIR_TestRunner::check(
+	false !== strpos( (string) ( isset( $switched['headers']['location'] ) ? $switched['headers']['location'] : '' ), 'tab=check' ),
+	'the redirect returns to the tab the change was made on'
+);
+
+sfir_forget_user_meta( 1 );
+SFIR_TestRunner::equals( 'ru_RU', get_user_meta( 1, SFIR_I18n::USER_META, true ), 'the choice is remembered for the user' );
+
+$russian = sfir_admin_request( $page_url );
+
+SFIR_TestRunner::check( false !== strpos( $russian['body'], 'Файлов в кэше' ), 'the screen is now in Russian' );
+SFIR_TestRunner::check( false !== strpos( $russian['body'], 'Очистить кэш изображений' ), 'the buttons are translated too' );
+SFIR_TestRunner::check( false === strpos( $russian['body'], 'Cached files' ), 'the English wording is gone' );
+
+$russian_docs = sfir_admin_request( $docs_url );
+SFIR_TestRunner::check( false !== strpos( $russian_docs['body'], 'Коды ошибок' ), 'the documentation is translated as well' );
+
+// Another locale, to prove the picker is not hard wired to one language.
+$nonce = sfir_form_nonce( $russian['body'], 'sfir_language' );
+
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'      => 'sfir_language',
+				'_wpnonce'    => $nonce,
+				'sfir_locale' => 'de_DE',
+			)
+		),
+	)
+);
+
+$german = sfir_admin_request( $page_url );
+SFIR_TestRunner::check( false !== strpos( $german['body'], 'Dateien im Cache' ), 'switching to German works' );
+
+// Back to the site language.
+$nonce = sfir_form_nonce( $german['body'], 'sfir_language' );
+
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'      => 'sfir_language',
+				'_wpnonce'    => $nonce,
+				'sfir_locale' => '',
+			)
+		),
+	)
+);
+
+sfir_forget_user_meta( 1 );
+SFIR_TestRunner::equals( '', (string) get_user_meta( 1, SFIR_I18n::USER_META, true ), 'choosing the site language clears the stored choice' );
+
+$back = sfir_admin_request( $page_url );
+SFIR_TestRunner::check( false !== strpos( $back['body'], 'Cached files' ), 'the screen follows the site language again' );
+
+/* --------------------------------------------------------------------------
+ * The Markdown reference and the plugins list link.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.2.0 markdown reference' );
+
+$docs_page = sfir_admin_request( $docs_url );
+
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'id="sfir-markdown"' ), 'the documentation tab carries the Markdown field' );
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'id="sfir-copy-markdown"' ), 'it has a copy button' );
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'download="sf-image-resizer.md"' ), 'it has a download link' );
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'sf_img_srcset' ), 'the reference mentions sf_img_srcset' );
+
+$markdown_url = $base_url . '/wp-content/plugins/sf-image-resizer/docs/sf-image-resizer.md';
+$markdown     = sfir_http( $markdown_url );
+
+SFIR_TestRunner::equals( 200, $markdown['status'], 'the .md file is downloadable' );
+SFIR_TestRunner::check( false !== strpos( $markdown['body'], 'sf_img_srcset' ), 'the downloaded file is the reference' );
+// The admin class is only loaded on admin requests, so pull it in explicitly.
+if ( ! class_exists( 'SFIR_Admin' ) ) {
+	require_once WP_PLUGIN_DIR . '/sf-image-resizer/admin/class-sfir-admin.php';
+}
+
+SFIR_TestRunner::check(
+	strlen( $markdown['body'] ) > 3000 && $markdown['body'] === SFIR_Admin::get_markdown(),
+	'the download matches what the page shows'
+);
+
+SFIR_TestRunner::group( '1.2.0 plugins list' );
+
+$plugins_page = sfir_admin_request( $base_url . '/wp-admin/plugins.php' );
+
+SFIR_TestRunner::equals( 200, $plugins_page['status'], 'the plugins screen loads' );
+SFIR_TestRunner::check(
+	false !== strpos( $plugins_page['body'], 'options-general.php?page=sf-image-resizer' ),
+	'the plugin row links to the settings screen'
+);
+SFIR_TestRunner::check(
+	false !== strpos( $plugins_page['body'], 'SF Image resizer' ),
+	'the plugin is listed under its new display name'
+);
 
 /* --------------------------------------------------------------------------
  * Directory protection.
