@@ -37,3 +37,115 @@
 	list-style: disc;
 	padding-left: 1.4em;
 }
+
+.sfir-wrap .sfir-hints {
+	max-width: 980px;
+	margin: 0 0 1em;
+	padding: 8px 12px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+}
+
+.sfir-wrap .sfir-hints summary {
+	cursor: pointer;
+}
+
+.sfir-wrap .sfir-header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.sfir-wrap .sfir-language {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.sfir-wrap .sfir-tabs {
+	margin-bottom: 1.5em;
+}
+
+.sfir-wrap .sfir-markdown {
+	width: 100%;
+	max-width: 980px;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+	background: #fff;
+}
+
+.sfir-wrap .sfir-markdown-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.sfir-wrap .sfir-markdown-actions .button {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.sfir-wrap .sfir-copy-feedback {
+	color: #008a20;
+}
+
+.sfir-wrap .sfir-hidden {
+	display: none;
+}
+
+.sfir-modes {
+	margin: 12px 0 4px;
+}
+
+.sfir-modes label {
+	display: block;
+	font-weight: 600;
+	margin-top: 12px;
+}
+
+.sfir-modes .description {
+	margin: 2px 0 0 24px;
+	max-width: 46em;
+}
+
+.sfir-check-row {
+	border-left: 4px solid #dcdcde;
+	background: #fff;
+	padding: 10px 14px;
+	margin: 12px 0;
+}
+
+.sfir-check-row.is-working {
+	border-left-color: #00a32a;
+}
+
+.sfir-check-title {
+	margin: 0 0 4px;
+}
+
+.sfir-check-mark {
+	display: inline-block;
+	width: 1.2em;
+	color: #8c8f94;
+	font-weight: 700;
+}
+
+.sfir-check-row.is-working .sfir-check-mark {
+	color: #00a32a;
+}
+
+.sfir-check-state {
+	margin: 0 0 4px 1.2em;
+}
+
+.sfir-check-row .description {
+	margin: 0 0 0 1.2em;
+	max-width: 46em;
+}
+
+.sfir-verdict {
+	max-width: 46em;
+}

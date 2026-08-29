@@ -287,11 +287,16 @@ class SFIR_Core {
 	/**
 	 * Builds the cache file name for a source file and a set of parameters.
 	 *
+	 * The name carries everything the request handler needs to rebuild the
+	 * request: the sanitised source stem, the parameters and a short HMAC that
+	 * proves the combination was produced by this site.
+	 *
 	 * @param string $source_basename Base name of the source file, with or without extension.
 	 * @param array  $params          Normalised parameters as returned by parse_params().
+	 * @param string $hash            Short HMAC from SFIR_Security::short_hash(), empty to omit it.
 	 * @return string File name limited to the [A-Za-z0-9._-] character set.
 	 */
-	public static function build_cache_filename( $source_basename, array $params ) {
+	public static function build_cache_filename( $source_basename, array $params, $hash = '' ) {
 		$name = (string) $source_basename;
 
 		$dot = strrpos( $name, '.' );
@@ -313,12 +318,79 @@ class SFIR_Core {
 			$suffix .= '-bg' . $params['bg'];
 		}
 
+		if ( is_string( $hash ) && '' !== $hash ) {
+			$suffix .= '-' . $hash;
+		}
+
 		$format = isset( $params['f'] ) ? $params['f'] : 'webp';
 		if ( ! in_array( $format, self::get_output_formats(), true ) ) {
 			$format = 'webp';
 		}
 
 		return $name . $suffix . '.' . $format;
+	}
+
+	/**
+	 * Parses a cache file name back into its components.
+	 *
+	 * This is the exact inverse of build_cache_filename(): feeding the result
+	 * back into that method reproduces the name it was given.
+	 *
+	 * @param string $filename Cache file name.
+	 * @return array|false {
+	 *     Parsed components, or false when the name is not one of ours.
+	 *
+	 *     @type string $stem   Sanitised stem of the source file name.
+	 *     @type array  $params Normalised parameters.
+	 *     @type string $hash   Short HMAC carried by the name.
+	 * }
+	 */
+	public static function parse_cache_filename( $filename ) {
+		if ( ! is_string( $filename ) || '' === $filename ) {
+			return false;
+		}
+
+		$pattern = '/^(?P<stem>[A-Za-z0-9._-]+)-(?P<w>\d{1,5})x(?P<h>\d{1,5})-c(?P<crop>[01])-q(?P<q>\d{1,2})(?:-bg(?P<bg>[0-9A-F]{6}))?-(?P<hash>[a-f0-9]{'
+			. SFIR_Security::HASH_LENGTH . '})\.(?P<ext>webp|jpg)$/';
+
+		if ( ! preg_match( $pattern, $filename, $matches ) ) {
+			return false;
+		}
+
+		$width  = (int) $matches['w'];
+		$height = (int) $matches['h'];
+		$q      = (int) $matches['q'];
+
+		if ( $width > SFIR_MAX_DIMENSION || $height > SFIR_MAX_DIMENSION ) {
+			return false;
+		}
+
+		if ( $q < self::MIN_QUALITY || $q > self::MAX_QUALITY ) {
+			return false;
+		}
+
+		$crop = (int) $matches['crop'];
+
+		// The same rule build_cache_filename() was given: cropping needs both sides.
+		if ( $width < 1 || $height < 1 ) {
+			if ( 0 !== $crop ) {
+				return false;
+			}
+		}
+
+		return array(
+			'stem'   => $matches['stem'],
+			'hash'   => $matches['hash'],
+			'params' => array(
+				'w'       => $width,
+				'h'       => $height,
+				'f'       => $matches['ext'],
+				'q'       => $q,
+				'bg'      => isset( $matches['bg'] ) ? $matches['bg'] : '',
+				'crop'    => $crop,
+				'notices' => array(),
+			),
+		);
 	}
 
 	/**
@@ -394,24 +466,65 @@ class SFIR_Core {
 	}
 
 	/**
-	 * Turns a relative path into a mirrored, sanitised cache path.
+	 * Returns the directory part of a relative path.
+	 *
+	 * The directory tree is mirrored verbatim inside the cache, so that the
+	 * request handler can map a cache path back onto its source directory. The
+	 * segments come from an already validated path, so they carry no traversal.
 	 *
 	 * @param string $relative_path Normalised relative path of the source file.
-	 * @return string Sanitised relative directory without leading or trailing slash, may be empty.
+	 * @return string Relative directory without leading or trailing slash, may be empty.
 	 */
-	public static function sanitize_relative_dir( $relative_path ) {
+	public static function relative_dir( $relative_path ) {
 		$parts = explode( '/', (string) $relative_path );
 		array_pop( $parts );
 
 		$clean = array();
 		foreach ( $parts as $part ) {
-			if ( '' === $part ) {
+			if ( '' === $part || '.' === $part || '..' === $part ) {
 				continue;
 			}
-			$clean[] = self::sanitize_name( $part );
+			$clean[] = $part;
 		}
 
 		return implode( '/', $clean );
+	}
+
+	/**
+	 * Splits a URL path into decoded, validated segments.
+	 *
+	 * Each segment is decoded on its own, so an encoded slash can never turn
+	 * into a path separator, and traversal or null bytes are refused outright.
+	 *
+	 * @param string $path Percent-encoded path.
+	 * @return array|false List of decoded segments, or false when the path is unusable.
+	 */
+	public static function decode_url_path( $path ) {
+		if ( ! is_string( $path ) || '' === $path ) {
+			return false;
+		}
+
+		$segments = array();
+
+		foreach ( explode( '/', $path ) as $segment ) {
+			if ( '' === $segment ) {
+				continue;
+			}
+
+			$decoded = rawurldecode( $segment );
+
+			if ( '' === $decoded || '.' === $decoded || '..' === $decoded ) {
+				return false;
+			}
+
+			if ( false !== strpos( $decoded, "\0" ) || false !== strpos( $decoded, '/' ) || false !== strpos( $decoded, '\\' ) ) {
+				return false;
+			}
+
+			$segments[] = $decoded;
+		}
+
+		return empty( $segments ) ? false : $segments;
 	}
 
 	/**
@@ -812,13 +925,41 @@ class SFIR_Core {
 	 * @return string Relative directory without leading or trailing slash.
 	 */
 	public static function cache_relative_dir( array $resolved ) {
-		$dir = self::sanitize_relative_dir( $resolved['relative'] );
+		$dir = self::relative_dir( $resolved['relative'] );
 
 		if ( self::ROOT_ABSPATH === $resolved['root'] ) {
 			$dir = '' === $dir ? self::ABSPATH_CACHE_PREFIX : self::ABSPATH_CACHE_PREFIX . '/' . $dir;
 		}
 
 		return $dir;
+	}
+
+	/**
+	 * Returns the public URL of a resolved source file.
+	 *
+	 * Used when a resized copy cannot be produced in time: the untouched
+	 * original is a correct image, which a cache URL with no file behind it
+	 * would not be.
+	 *
+	 * @param array $resolved Resolution result from resolve_source().
+	 * @return string URL, or an empty string when it cannot be built.
+	 */
+	public static function source_url( array $resolved ) {
+		if ( empty( $resolved['ok'] ) || ! isset( $resolved['relative'] ) ) {
+			return '';
+		}
+
+		if ( self::ROOT_UPLOADS === $resolved['root'] ) {
+			$uploads = wp_get_upload_dir();
+
+			if ( empty( $uploads['baseurl'] ) ) {
+				return '';
+			}
+
+			return trailingslashit( $uploads['baseurl'] ) . $resolved['relative'];
+		}
+
+		return trailingslashit( site_url( '/' ) ) . $resolved['relative'];
 	}
 
 	/**

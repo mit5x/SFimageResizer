@@ -18,19 +18,33 @@ every release, so `.gitignore` blocks `download/` and `*.zip`.
    - `sf-image-resizer/sf-image-resizer.php` — the `SFIR_VERSION` constant
    - `sf-image-resizer/readme.txt` — `Stable tag:`
 2. Add a `== Changelog ==` entry for that version to `readme.txt`.
-3. Regenerate the translation template:
+3. If any user-visible string changed, regenerate the translation template,
+   update the seven `.po` files and recompile them:
    ```bash
    wp i18n make-pot sf-image-resizer sf-image-resizer/languages/sf-image-resizer.pot --domain=sf-image-resizer
+   # translate the new strings in each languages/sf-image-resizer-<locale>.po
+   wp i18n make-mo sf-image-resizer/languages
    ```
+   A locale whose `.po` is missing a string falls back to English for that
+   string only, so a partial translation is never a broken screen — but ship
+   them complete.
 4. Commit and push. CI runs the unit tests, the coding standards, the full
    WordPress integration suite and Plugin Check on every push.
-5. Tag the commit and push the tag:
+5. Release it, either way round:
+
+   **From the Actions tab, with no command line.** Open **Actions → Release →
+   Run workflow**, pick the branch the commit is on, type the version
+   (`1.2.0`, with or without the leading `v`) and press **Run workflow**. The
+   workflow creates the `v1.2.0` tag on that branch itself and carries on. This
+   is the whole release; nothing has to be tagged beforehand.
+
+   **Or by pushing a tag**, which starts the same workflow:
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v1.2.0
+   git push origin v1.2.0
    ```
 
-That last push is the whole release. The workflow then:
+Either way the workflow then:
 
 * checks that the tag, the two version numbers in the plugin file, the
   `Stable tag:` in `readme.txt` and the changelog entry all agree, and fails
@@ -42,8 +56,10 @@ That last push is the whole release. The workflow then:
 * creates the GitHub Release named `SFimageResizer <version>` with the archive
   attached and its sha256 in the notes.
 
-Re-running the workflow for an existing tag (Actions → Release → Run workflow,
-with the tag name as input) replaces the asset instead of failing.
+The version check runs *before* the tag is created, so a manual run with a
+version that does not match the plugin files fails without leaving a tag
+behind. Re-running the workflow for a version that is already tagged reuses
+the existing tag and replaces the asset instead of failing.
 
 ## Building the archive by hand
 
@@ -67,8 +83,13 @@ sf-image-resizer/
 ├── readme.txt
 ├── includes/
 ├── admin/
+├── docs/
 └── languages/
 ```
+
+`docs/sf-image-resizer.md` is the reference the Documentation tab offers for
+download, and `languages/` holds the `.pot` plus a `.po` and a compiled `.mo`
+for each translated locale. Both directories ship.
 
 ## Verifying an archive
 

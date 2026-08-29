@@ -21,11 +21,12 @@ defined( 'ABSPATH' ) || exit;
  * @return array {
  *     Everything the template functions need.
  *
- *     @type bool   $ok     Whether the image could be prepared.
- *     @type string $error  Error code when $ok is false.
- *     @type string $url    URL of the cached file, the generation endpoint or the placeholder.
- *     @type int    $width  Width of the image the URL points at.
- *     @type int    $height Height of the image the URL points at.
+ *     @type bool   $ok       Whether the image could be prepared.
+ *     @type string $error    Error code when $ok is false.
+ *     @type string $url      URL of the cached file, the original or the placeholder.
+ *     @type int    $width    Width of the image the URL points at.
+ *     @type int    $height   Height of the image the URL points at.
+ *     @type bool   $fallback Whether the URL is the untouched original.
  * }
  */
 function sfir_prepare( $source, $params = '' ) {
@@ -89,22 +90,64 @@ function sfir_prepare_uncached( $source, $params ) {
 		return sfir_prepare_failure( 'E02', $parsed );
 	}
 
+	$hash         = SFIR_Security::short_hash( SFIR_Core::signature_payload( $resolved['key'], $parsed ) );
 	$relative_dir = SFIR_Core::cache_relative_dir( $resolved );
-	$filename     = SFIR_Core::build_cache_filename( basename( $resolved['relative'] ), $parsed );
+	$filename     = SFIR_Core::build_cache_filename( basename( $resolved['relative'] ), $parsed, $hash );
 	$cache_path   = SFIR_Cache::get_file_path( $relative_dir, $filename );
 
-	if ( '' !== $cache_path && SFIR_Cache::is_fresh( $cache_path, $resolved['path'] ) ) {
-		$url = SFIR_Cache::get_file_url( $relative_dir, $filename );
-	} else {
-		$url = SFIR_Endpoint::build_generate_url( $resolved['key'], $parsed );
+	// The URL never changes: it is the cache file, whether or not it exists yet.
+	// A copy older than its source is removed here, so that the next browser
+	// request misses the static file and reaches the generator again.
+	if ( '' !== $cache_path && file_exists( $cache_path ) && ! SFIR_Cache::is_fresh( $cache_path, $resolved['path'] ) ) {
+		SFIR_Cache::delete_file( $cache_path );
+	}
+
+	// On a server that cannot hand a missing cache file to WordPress, a URL
+	// with no file behind it is a broken image. Produce the copy now, and if
+	// that cannot be done, point at the untouched original instead.
+	if ( SFIR_Generator::is_eager() && ! SFIR_Generator::ensure( $resolved, $size, $parsed, $geometry, $cache_path ) ) {
+		return sfir_prepare_fallback( $resolved, $size, $parsed );
 	}
 
 	return array(
-		'ok'     => true,
-		'error'  => '',
-		'url'    => esc_url_raw( $url ),
-		'width'  => (int) $geometry['dst_w'],
-		'height' => (int) $geometry['dst_h'],
+		'ok'       => true,
+		'error'    => '',
+		'url'      => esc_url_raw( SFIR_Cache::get_file_url( $relative_dir, $filename ) ),
+		'width'    => (int) $geometry['dst_w'],
+		'height'   => (int) $geometry['dst_h'],
+		'fallback' => false,
+	);
+}
+
+/**
+ * Builds the answer used when a copy could not be produced while rendering.
+ *
+ * The original is a correct image at the correct aspect ratio, so the page
+ * stays intact; it is only larger than it needed to be. Whatever this render
+ * ran out of budget for is produced by the next one, so a page settles down
+ * after a few visits.
+ *
+ * @internal
+ *
+ * @param array $resolved Resolved source.
+ * @param array $size     Source size, see SFIR_Cache::get_source_size().
+ * @param array $parsed   Normalised parameters.
+ * @return array See sfir_prepare().
+ */
+function sfir_prepare_fallback( array $resolved, array $size, array $parsed ) {
+	$url = SFIR_Core::source_url( $resolved );
+
+	if ( '' === $url ) {
+		return sfir_prepare_failure( 'E01', $parsed );
+	}
+
+	return array(
+		'ok'       => true,
+		'error'    => '',
+		'url'      => esc_url_raw( $url ),
+		'width'    => (int) $size['width'],
+		'height'   => (int) $size['height'],
+		'fallback' => true,
 	);
 }
 
@@ -123,11 +166,12 @@ function sfir_prepare_failure( $code, array $parsed ) {
 	$size   = SFIR_Placeholder::get_size( $width, $height );
 
 	return array(
-		'ok'     => false,
-		'error'  => $code,
-		'url'    => esc_url_raw( SFIR_Placeholder::get_url( $code, $width, $height ) ),
-		'width'  => (int) $size['width'],
-		'height' => (int) $size['height'],
+		'ok'       => false,
+		'error'    => $code,
+		'url'      => esc_url_raw( SFIR_Placeholder::get_url( $code, $width, $height ) ),
+		'width'    => (int) $size['width'],
+		'height'   => (int) $size['height'],
+		'fallback' => false,
 	);
 }
 
@@ -135,9 +179,14 @@ if ( ! function_exists( 'sf_img' ) ) {
 	/**
 	 * Returns the URL of a resized copy of an image.
 	 *
-	 * When the copy is already cached, a static file URL is returned and PHP is
-	 * not involved when the browser loads it. Otherwise a signed generation URL
-	 * is returned, which produces and caches the file on first request.
+	 * The URL is a plain static file inside the cache directory. Depending on
+	 * the generation mode the copy is produced while this call runs, or the
+	 * first time a browser asks for that URL.
+	 *
+	 * If a copy has to be produced now and cannot be — this render has already
+	 * used up its budget, or GD refused the file — the URL of the untouched
+	 * original is returned instead, so the page shows a correct image rather
+	 * than a broken one.
 	 *
 	 * Output the result with `echo esc_url( sf_img( ... ) )`.
 	 *
@@ -154,7 +203,8 @@ if ( ! function_exists( 'sf_img' ) ) {
 
 if ( ! function_exists( 'sf_img_width' ) ) {
 	/**
-	 * Returns the width the resized copy will have, without generating it.
+	 * Returns the width of the image sf_img() points at, calculated from the
+	 * source rather than by reading the copy.
 	 *
 	 * @param mixed        $source Image URL on this site, attachment ID, or an ACF image array.
 	 * @param string|array $params Parameters such as 'w=900&h=0&crop=1'.
@@ -169,7 +219,7 @@ if ( ! function_exists( 'sf_img_width' ) ) {
 
 if ( ! function_exists( 'sf_img_height' ) ) {
 	/**
-	 * Returns the height the resized copy will have, without generating it.
+	 * Returns the height of the image sf_img() points at.
 	 *
 	 * @param mixed        $source Image URL on this site, attachment ID, or an ACF image array.
 	 * @param string|array $params Parameters such as 'w=900&h=0&crop=1'.
@@ -180,6 +230,108 @@ if ( ! function_exists( 'sf_img_height' ) ) {
 
 		return $prepared['height'];
 	}
+}
+
+if ( ! function_exists( 'sf_img_srcset' ) ) {
+	/**
+	 * Returns a ready to use srcset for an image.
+	 *
+	 * Produces one candidate per width in the ladder, skipping the ones the
+	 * source is too small for. The descriptor of every candidate is the width
+	 * the file really has, never the width that was asked for, so a browser is
+	 * never told that a 1600 pixel copy is 2560 pixels wide.
+	 *
+	 * Pair it with `sizes="auto"` and `loading="lazy"`, or with a `sizes` value
+	 * of your own, and put whatever you like in `src`.
+	 *
+	 * @param mixed        $source Image URL on this site, attachment ID, or an ACF image array.
+	 * @param string|array $params Extra parameters, for example 'q=80&f=jpg'. Any w or h is ignored.
+	 * @param int[]        $widths Widths to offer. Defaults to 320, 640, 960, 1280, 1920 and 2560.
+	 * @return string The srcset value, escaped for use in an attribute by esc_attr(), or an empty string.
+	 */
+	function sf_img_srcset( $source, $params = '', $widths = array() ) {
+		if ( empty( $widths ) || ! is_array( $widths ) ) {
+			$widths = sfir_default_srcset_widths();
+		}
+
+		$base = SFIR_Core::parse_params( $params );
+
+		$candidates = array();
+		$seen       = array();
+
+		foreach ( $widths as $width ) {
+			$width = (int) $width;
+
+			if ( $width < 1 ) {
+				continue;
+			}
+
+			$variant = sfir_srcset_variant_params( $base, $width );
+
+			$prepared = sfir_prepare( $source, $variant );
+
+			if ( empty( $prepared['ok'] ) ) {
+				return '';
+			}
+
+			// A candidate that fell back to the original is not this width, and
+			// offering it would tell the browser the wrong size. Leave it out;
+			// the next render produces it and the srcset fills in.
+			if ( ! empty( $prepared['fallback'] ) ) {
+				continue;
+			}
+
+			$real = (int) $prepared['width'];
+
+			// The plugin never enlarges, so once the source runs out the widths
+			// start repeating. Keeping them would lie about the file's size.
+			if ( $real < 1 || isset( $seen[ $real ] ) ) {
+				continue;
+			}
+
+			$seen[ $real ]       = true;
+			$candidates[ $real ] = $prepared['url'] . ' ' . $real . 'w';
+		}
+
+		if ( empty( $candidates ) ) {
+			return '';
+		}
+
+		ksort( $candidates );
+
+		return implode( ', ', $candidates );
+	}
+}
+
+/**
+ * Returns the default width ladder of sf_img_srcset().
+ *
+ * @internal
+ *
+ * @return int[]
+ */
+function sfir_default_srcset_widths() {
+	return array( 320, 640, 960, 1280, 1920, 2560 );
+}
+
+/**
+ * Builds the parameters of one srcset candidate.
+ *
+ * @internal
+ *
+ * @param array $base  Normalised parameters shared by every candidate.
+ * @param int   $width Width of this candidate.
+ * @return array
+ */
+function sfir_srcset_variant_params( array $base, $width ) {
+	return array(
+		'w'    => (int) $width,
+		'h'    => 0,
+		'f'    => $base['f'],
+		'q'    => $base['q'],
+		'bg'   => $base['bg'],
+		'crop' => 0,
+	);
 }
 
 if ( ! function_exists( 'sf_img_tag' ) ) {

@@ -1,17 +1,15 @@
-# Copyright (C) 2026 saytformat
+# Translation of SF Image resizer into Italian.
 # This file is distributed under the GPLv2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: SF Image resizer 1.4.0\n"
-"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/sf-image-resizer\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
+"Project-Id-Version: SF Image resizer 1.2.0\n"
+"Report-Msgid-Bugs-To: https://web-format.net\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-08-29T05:48:20+00:00\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"X-Generator: WP-CLI 2.12.0\n"
+"PO-Revision-Date: 2026-08-29\n"
+"Language: it_IT\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "X-Domain: sf-image-resizer\n"
 
 #. Plugin Name of the plugin
@@ -31,7 +29,7 @@ msgstr ""
 #. Description of the plugin
 #: sf-image-resizer.php
 msgid "On-demand image resizing, cropping and WebP/JPG conversion for theme developers, straight from PHP templates, with automatic disk caching."
-msgstr ""
+msgstr "Ridimensionamento, ritaglio e conversione in WebP/JPG su richiesta per chi sviluppa temi, direttamente dai template PHP e con cache automatica su disco."
 
 #. Author of the plugin
 #: sf-image-resizer.php
@@ -40,494 +38,494 @@ msgstr ""
 
 #: admin/class-sfir-admin.php:118
 msgid "Delete every cached image? They will be regenerated on demand."
-msgstr ""
+msgstr "Eliminare tutte le immagini in cache? Verranno ricreate quando serviranno."
 
 #: admin/class-sfir-admin.php:119
 msgid "Clear the error log?"
-msgstr ""
+msgstr "Svuotare il registro degli errori?"
 
 #: admin/class-sfir-admin.php:127
 msgid "Works on this server."
-msgstr ""
+msgstr "Funziona su questo server."
 
 #: admin/class-sfir-admin.php:128
 msgid "Checked from your browser just now."
-msgstr ""
+msgstr "Verificato in questo momento dal tuo browser."
 
 #: admin/class-sfir-admin.php:129
 msgid "Copied"
-msgstr ""
+msgstr "Copiato"
 
 #: admin/class-sfir-admin.php:130
 msgid "Press Ctrl+C to copy"
-msgstr ""
+msgstr "Premi Ctrl+C per copiare"
 
 #. translators: %d: number of deleted files.
 #: admin/class-sfir-admin.php:153
 #, php-format
 msgid "%d cached file deleted."
 msgid_plural "%d cached files deleted."
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%d file in cache eliminato."
+msgstr[1] "%d file in cache eliminati."
 
 #: admin/class-sfir-admin.php:174
 msgid "The error log has been cleared."
-msgstr ""
+msgstr "Il registro degli errori è stato svuotato."
 
 #: admin/class-sfir-admin.php:175
 msgid "The error log could not be cleared."
-msgstr ""
+msgstr "Non è stato possibile svuotare il registro degli errori."
 
 #: admin/class-sfir-admin.php:192
 msgid "The check was reset and will run again from your browser."
-msgstr ""
+msgstr "La verifica è stata azzerata e verrà eseguita di nuovo dal tuo browser."
 
 #: admin/class-sfir-admin.php:232
 msgid "The generation mode has been saved."
-msgstr ""
+msgstr "La modalità di creazione è stata salvata."
 
 #: admin/class-sfir-admin.php:245
 #: admin/class-sfir-admin.php:356
 #: includes/class-sfir-diagnostics.php:269
 msgid "You are not allowed to do this."
-msgstr ""
+msgstr "Non hai i permessi per farlo."
 
 #: admin/class-sfir-admin.php:313
 #: admin/class-sfir-admin.php:436
 msgid "Cache"
-msgstr ""
+msgstr "Cache"
 
 #: admin/class-sfir-admin.php:314
 msgid "Check and log"
-msgstr ""
+msgstr "Verifica e registro"
 
 #: admin/class-sfir-admin.php:315
 #: admin/class-sfir-admin.php:722
 msgid "Documentation"
-msgstr ""
+msgstr "Documentazione"
 
 #: admin/class-sfir-admin.php:410
 msgid "Language of this screen"
-msgstr ""
+msgstr "Lingua di questa pagina"
 
 #: admin/class-sfir-admin.php:418
 msgid "Apply"
-msgstr ""
+msgstr "Applica"
 
 #: admin/class-sfir-admin.php:440
 msgid "Cached files"
-msgstr ""
+msgstr "File in cache"
 
 #: admin/class-sfir-admin.php:445
 #: admin/class-sfir-admin.php:457
 msgid "(approximate)"
-msgstr ""
+msgstr "(approssimativo)"
 
 #: admin/class-sfir-admin.php:451
 msgid "Total size"
-msgstr ""
+msgstr "Dimensione totale"
 
 #. translators: %s: cache size in megabytes.
 #: admin/class-sfir-admin.php:455
 #, php-format
 msgid "%s MB"
-msgstr ""
+msgstr "%s MB"
 
 #: admin/class-sfir-admin.php:463
 msgid "Cache directory"
-msgstr ""
+msgstr "Cartella della cache"
 
 #: admin/class-sfir-admin.php:467
 msgid "WebP output"
-msgstr ""
+msgstr "Output WebP"
 
 #: admin/class-sfir-admin.php:471
 msgid "Supported by this server."
-msgstr ""
+msgstr "Supportato da questo server."
 
 #: admin/class-sfir-admin.php:472
 msgid "Not available: this GD build has no WebP support, JPG is produced instead."
-msgstr ""
+msgstr "Non disponibile: questa build di GD non supporta WebP, viene prodotto JPG."
 
 #: admin/class-sfir-admin.php:479
 msgid "Deleting the cache is safe: every copy is created again the first time a browser asks for it."
-msgstr ""
+msgstr "Svuotare la cache è sicuro: ogni copia viene ricreata alla prima richiesta di un browser."
 
 #: admin/class-sfir-admin.php:484
 msgid "Clear image cache"
-msgstr ""
+msgstr "Svuota la cache delle immagini"
 
 #: admin/class-sfir-admin.php:506
 msgid "Configuration check"
-msgstr ""
+msgstr "Verifica della configurazione"
 
 #: admin/class-sfir-admin.php:508
 msgid "There are two ways for a resized copy to come into being, and a server can support one without the other. Each is checked on its own, from your own browser."
-msgstr ""
+msgstr "Ci sono due modi in cui una copia ridimensionata può nascere, e un server può supportarne uno senza l’altro. Ciascuno viene verificato separatamente, dal tuo browser."
 
 #: admin/class-sfir-admin.php:515
 msgid "Generating while the page is rendered"
-msgstr ""
+msgstr "Creazione durante il rendering della pagina"
 
 #: admin/class-sfir-admin.php:516
 msgid "The plugin creates the file itself, then the web server hands it over like any other file. Nothing else is required, so this works almost everywhere."
-msgstr ""
+msgstr "Il plugin crea il file da sé, e poi il web server lo consegna come qualsiasi altro file. Non serve altro, perciò questo funziona quasi ovunque."
 
 #: admin/class-sfir-admin.php:522
 msgid "Generating on request from the browser"
-msgstr ""
+msgstr "Creazione su richiesta del browser"
 
 #: admin/class-sfir-admin.php:523
 msgid "A browser asks for a file that does not exist yet, and the web server has to pass that request to WordPress instead of answering 404. Apache does it through the .htaccess this plugin writes; nginx needs a rule in its configuration."
-msgstr ""
+msgstr "Un browser chiede un file che non esiste ancora, e il web server deve inoltrare quella richiesta a WordPress invece di rispondere 404. Apache lo fa tramite il .htaccess che questo plugin scrive; nginx richiede una regola nella sua configurazione."
 
 #: admin/class-sfir-admin.php:534
 msgid "Check again"
-msgstr ""
+msgstr "Verifica di nuovo"
 
 #: admin/class-sfir-admin.php:539
 msgid "Error log"
-msgstr ""
+msgstr "Registro degli errori"
 
 #: admin/class-sfir-admin.php:541
 msgid "The 50 first lines of the log file are shown below."
-msgstr ""
+msgstr "Qui sotto sono mostrate le prime 50 righe del file di registro."
 
 #: admin/class-sfir-admin.php:544
 msgid "The log is empty."
-msgstr ""
+msgstr "Il registro è vuoto."
 
 #: admin/class-sfir-admin.php:549
 msgid "Clear log"
-msgstr ""
+msgstr "Svuota il registro"
 
 #. translators: %s: date and time of the last confirmation.
 #: admin/class-sfir-admin.php:576
 #, php-format
 msgid "Works on this server. Confirmed on %s."
-msgstr ""
+msgstr "Funziona su questo server. Confermato il %s."
 
 #: admin/class-sfir-admin.php:580
 msgid "Not confirmed on this server."
-msgstr ""
+msgstr "Non confermato su questo server."
 
 #: admin/class-sfir-admin.php:600
 msgid "Both ways work here, so any mode below is safe. Generating on request is the lighter one."
-msgstr ""
+msgstr "Qui funzionano entrambi i modi, quindi qualsiasi modalità qui sotto va bene. La creazione su richiesta è la più leggera."
 
 #: admin/class-sfir-admin.php:604
 msgid "This server supports generating while the page is rendered, but not on request. That is not a fault, and your images are being produced normally — it is exactly the case the first mode below exists for. Leave the mode on \"Automatic\" or set it to the first one."
-msgstr ""
+msgstr "Questo server supporta la creazione durante il rendering, ma non su richiesta. Non è un guasto, e le tue immagini vengono create regolarmente: è esattamente il caso per cui esiste la prima modalità qui sotto. Lascia «Automatico» oppure scegli la prima."
 
 #: admin/class-sfir-admin.php:608
 msgid "Generating on request works here, which is the lighter of the two. The other check has not answered yet."
-msgstr ""
+msgstr "La creazione su richiesta funziona qui, ed è la più leggera delle due. L’altra verifica non ha ancora risposto."
 
 #: admin/class-sfir-admin.php:611
 msgid "Neither check has answered yet. They run in your browser when this tab is open, so give the page a moment, and make sure no ad blocker is stopping requests to your own site."
-msgstr ""
+msgstr "Nessuna delle due verifiche ha ancora risposto. Vengono eseguite nel tuo browser finché questa scheda è aperta: concedi qualche istante alla pagina e assicurati che nessun blocco pubblicità stia fermando le richieste verso il tuo stesso sito."
 
 #: admin/class-sfir-admin.php:624
 msgid "When copies are produced"
-msgstr ""
+msgstr "Quando vengono create le copie"
 
 #: admin/class-sfir-admin.php:626
 msgid "If your host cannot be configured to hand a missing cache file to WordPress, let the plugin produce the copies while the page is rendered. The first visit to each page is then slower, and every visit after that is served straight from disk."
-msgstr ""
+msgstr "Se il tuo host non può essere configurato per passare a WordPress un file di cache mancante, lascia che il plugin crei le copie durante il rendering della pagina. La prima visita a ogni pagina sarà più lenta, tutte le successive verranno servite direttamente dal disco."
 
 #: admin/class-sfir-admin.php:648
 msgid "Right now: copies are produced while the page is rendered."
-msgstr ""
+msgstr "In questo momento: le copie vengono create durante il rendering della pagina."
 
 #: admin/class-sfir-admin.php:649
 msgid "Right now: copies are produced the first time a browser asks for them."
-msgstr ""
+msgstr "In questo momento: le copie vengono create alla prima richiesta di un browser."
 
 #: admin/class-sfir-admin.php:655
 msgid "Save"
-msgstr ""
+msgstr "Salva"
 
 #: admin/class-sfir-admin.php:659
 msgid "Making the on-request mode work on nginx"
-msgstr ""
+msgstr "Far funzionare la modalità su richiesta con nginx"
 
 #: admin/class-sfir-admin.php:660
 msgid "nginx answers a request for a file that does not exist with 404 and never involves WordPress, which is why the on-request mode cannot work until it is told otherwise. Add this to the server configuration of this site and reload nginx. Your host can apply it for you; it affects one directory and nothing else:"
-msgstr ""
+msgstr "nginx risponde con 404 alla richiesta di un file che non esiste e non coinvolge affatto WordPress: per questo la modalità su richiesta non può funzionare finché non gli si dice altrimenti. Aggiungi questo alla configurazione del server di questo sito e ricarica nginx. Il tuo host può applicarlo per te; riguarda una sola cartella e nient’altro:"
 
 #: admin/class-sfir-admin.php:662
 msgid "The ^~ matters: without it the rule loses to the block that serves static images, which is present in almost every configuration. Once nginx is reloaded, press \"Check again\" above."
-msgstr ""
+msgstr "Il ^~ conta: senza, la regola perde contro il blocco che serve le immagini statiche, presente in quasi tutte le configurazioni. Dopo aver ricaricato nginx, premi «Verifica di nuovo» qui sopra."
 
 #: admin/class-sfir-admin.php:663
 msgid "On Apache nothing needs adding, but .htaccess files have to be honoured (AllowOverride All) for the uploads directory."
-msgstr ""
+msgstr "Su Apache non serve aggiungere nulla, ma i file .htaccess devono essere considerati (AllowOverride All) per la cartella uploads."
 
 #: admin/class-sfir-admin.php:676
 msgid "Every size of every image on the page is created as the page is built, even the sizes no visitor has needed yet. Nine images at six widths is 54 copies, so the first visit creates part of them and the following visits create the rest — deliberately, so that a page full of new sizes cannot run into the PHP timeout and hold the site up. Slower on the first visits, and it works on every server."
-msgstr ""
+msgstr "Ogni dimensione di ogni immagine della pagina viene creata mentre la pagina viene costruita, anche le dimensioni di cui nessun visitatore ha ancora avuto bisogno. Nove immagini per sei larghezze fanno 54 copie: la prima visita ne crea una parte e le visite successive il resto, ed è voluto, perché una pagina piena di nuove dimensioni non deve incappare nel timeout di PHP e bloccare il sito. Le prime visite sono più lente, e funziona su qualsiasi server."
 
 #: admin/class-sfir-admin.php:680
 msgid "Nothing is made in advance. When a visitor arrives whose screen needs a particular size, that visitor's browser asks for it, the plugin creates exactly that one copy and caches it on disk, and it is never made again. Only the sizes really being looked at are ever created, and no page render is slowed down. This is the better of the two — but it needs the web server to pass a request for a missing file to WordPress, and not every server can be made to do that. The mode above exists to cover the ones that cannot."
-msgstr ""
+msgstr "Non viene creato nulla in anticipo. Quando arriva un visitatore il cui schermo ha bisogno di una certa dimensione, è il browser di quel visitatore a chiederla, il plugin crea esattamente quella copia e la mette in cache su disco, e non viene più ricreata. Vengono create solo le dimensioni davvero guardate, e nessun rendering di pagina viene rallentato. È la migliore delle due — ma richiede che il web server inoltri a WordPress la richiesta di un file mancante, e non tutti i server possono essere configurati così. La modalità qui sopra esiste per coprire quelli che non possono."
 
 #: admin/class-sfir-admin.php:683
 msgid "Uses whichever of the two below works on this server. It starts by generating up front, and switches to generating on request as soon as the check above confirms that requests for missing files reach the plugin. Leave it on this unless you have a reason not to."
-msgstr ""
+msgstr "Usa quella delle due qui sotto che funziona su questo server. Comincia creando in anticipo e passa alla creazione su richiesta non appena la verifica qui sopra conferma che le richieste dei file mancanti raggiungono il plugin. Lasciala così, se non hai motivo di fare altrimenti."
 
 #: admin/class-sfir-admin.php:724
 msgid "Call these functions from your theme templates. They never throw and never break a page: on error they return an SVG placeholder and write one line to the log."
-msgstr ""
+msgstr "Richiama queste funzioni dai template del tuo tema. Non sollevano mai eccezioni e non rompono mai una pagina: in caso di errore restituiscono un segnaposto SVG e scrivono una riga nel registro."
 
 #: admin/class-sfir-admin.php:726
 msgid "Functions"
-msgstr ""
+msgstr "Funzioni"
 
 #: admin/class-sfir-admin.php:730
 msgid "Function"
-msgstr ""
+msgstr "Funzione"
 
 #: admin/class-sfir-admin.php:731
 #: admin/class-sfir-admin.php:768
 msgid "Description"
-msgstr ""
+msgstr "Descrizione"
 
 #: admin/class-sfir-admin.php:737
 msgid "Returns the URL of the resized copy. Output it with esc_url()."
-msgstr ""
+msgstr "Restituisce l’URL della copia ridimensionata. Stampalo con esc_url()."
 
 #: admin/class-sfir-admin.php:741
 msgid "Returns the width the copy will have, calculated without generating it."
-msgstr ""
+msgstr "Restituisce la larghezza che avrà la copia, calcolata senza generarla."
 
 #: admin/class-sfir-admin.php:745
 msgid "Returns the matching height."
-msgstr ""
+msgstr "Restituisce l’altezza corrispondente."
 
 #: admin/class-sfir-admin.php:749
 msgid "Returns a complete srcset for 320, 640, 960, 1280, 1920 and 2560 pixels. Output it with esc_attr()."
-msgstr ""
+msgstr "Restituisce un srcset completo per 320, 640, 960, 1280, 1920 e 2560 pixel. Stampalo con esc_attr()."
 
 #: admin/class-sfir-admin.php:753
 msgid "Returns a complete img tag with src, width, height, loading=\"lazy\" and decoding=\"async\". Attributes in $attrs override the defaults."
-msgstr ""
+msgstr "Restituisce un tag img completo con src, width, height, loading=\"lazy\" e decoding=\"async\". Gli attributi in $attrs sostituiscono quelli predefiniti."
 
 #: admin/class-sfir-admin.php:758
 msgid "Sources"
-msgstr ""
+msgstr "Sorgenti"
 
 #: admin/class-sfir-admin.php:759
 msgid "$source accepts a URL belonging to this site, an attachment ID, or an ACF image array. Anything else, including URLs on other hosts, produces a placeholder."
-msgstr ""
+msgstr "$source accetta un URL di questo sito, un ID allegato o un array immagine di ACF. Qualsiasi altra cosa, inclusi URL su altri domini, produce un segnaposto."
 
 #: admin/class-sfir-admin.php:761
 msgid "Parameters"
-msgstr ""
+msgstr "Parametri"
 
 #: admin/class-sfir-admin.php:765
 msgid "Parameter"
-msgstr ""
+msgstr "Parametro"
 
 #: admin/class-sfir-admin.php:766
 msgid "Values"
-msgstr ""
+msgstr "Valori"
 
 #: admin/class-sfir-admin.php:767
 msgid "Default"
-msgstr ""
+msgstr "Predefinito"
 
 #: admin/class-sfir-admin.php:776
 msgid "Maximum width in pixels. 0 means \"not constrained\"."
-msgstr ""
+msgstr "Larghezza massima in pixel. 0 significa «senza vincolo»."
 
 #: admin/class-sfir-admin.php:782
 msgid "Maximum height in pixels. 0 means \"not constrained\"."
-msgstr ""
+msgstr "Altezza massima in pixel. 0 significa «senza vincolo»."
 
 #: admin/class-sfir-admin.php:788
 msgid "Output format."
-msgstr ""
+msgstr "Formato di output."
 
 #: admin/class-sfir-admin.php:794
 msgid "Output quality."
-msgstr ""
+msgstr "Qualità di output."
 
 #: admin/class-sfir-admin.php:798
 msgid "3 or 6 hex digits, without \"#\""
-msgstr ""
+msgstr "3 o 6 cifre esadecimali, senza «#»"
 
 #: admin/class-sfir-admin.php:799
 msgid "transparent, FFFFFF for JPG"
-msgstr ""
+msgstr "trasparente, FFFFFF per JPG"
 
 #: admin/class-sfir-admin.php:800
 msgid "Background colour used to fill transparent areas."
-msgstr ""
+msgstr "Colore di sfondo con cui riempire le aree trasparenti."
 
 #: admin/class-sfir-admin.php:806
 msgid "Crop to exactly w x h, centred. Ignored unless both w and h are set."
-msgstr ""
+msgstr "Ritaglia esattamente a w x h, centrato. Ignorato se non sono impostati entrambi i lati."
 
 #: admin/class-sfir-admin.php:811
 msgid "Images are never enlarged. If the source is smaller than the request, the result keeps the source size; with crop=1 it is cropped to the largest region matching the requested ratio."
-msgstr ""
+msgstr "Le immagini non vengono mai ingrandite. Se l’originale è più piccolo di quanto richiesto, il risultato mantiene la dimensione dell’originale; con crop=1 viene ritagliato sulla regione più grande che rispetta le proporzioni richieste."
 
 #: admin/class-sfir-admin.php:813
 msgid "Examples"
-msgstr ""
+msgstr "Esempi"
 
 #: admin/class-sfir-admin.php:818
 msgid "1. A plain image URL:"
-msgstr ""
+msgstr "1. Un semplice URL di immagine:"
 
 #: admin/class-sfir-admin.php:825
 msgid "2. An attachment ID, cropped to a fixed box:"
-msgstr ""
+msgstr "2. Un ID allegato, ritagliato a una dimensione fissa:"
 
 #: admin/class-sfir-admin.php:829
 msgid "3. An ACF image field, flattened onto a white background as JPG:"
-msgstr ""
+msgstr "3. Un campo immagine ACF, appiattito su sfondo bianco in JPG:"
 
 #: admin/class-sfir-admin.php:858
 msgid "4. A universal responsive srcset"
-msgstr ""
+msgstr "4. Un srcset responsive universale"
 
 #: admin/class-sfir-admin.php:859
 msgid "This is the recommended way to output a responsive image, and it covers almost every case. sf_img_srcset() builds the whole srcset for you at 320, 640, 960, 1280, 1920 and 2560 pixels, so nothing has to be added to your theme functions.php. Everything else in the tag stays yours to write."
-msgstr ""
+msgstr "È il modo consigliato per mostrare un’immagine responsive e copre quasi tutti i casi. sf_img_srcset() costruisce l’intero srcset per 320, 640, 960, 1280, 1920 e 2560 pixel, quindi non serve aggiungere nulla al functions.php del tema. Tutto il resto del tag lo scrivi tu."
 
 #: admin/class-sfir-admin.php:861
 msgid "The variable may be called anything: it is just the first argument. Widths the source is too small for are skipped, and every candidate is labelled with the width the file really has, so the browser is never told that a 1600 pixel copy is 2560 pixels wide."
-msgstr ""
+msgstr "La variabile può avere qualsiasi nome: è semplicemente il primo argomento. Le larghezze per cui l’originale è troppo piccolo vengono saltate e ogni candidato riporta la larghezza reale del file, così al browser non viene mai detto che una copia da 1600 pixel ne misura 2560."
 
 #: admin/class-sfir-admin.php:862
 msgid "sizes=\"auto\" lets the browser measure the image itself, and it requires loading=\"lazy\". For an image above the fold, drop the lazy loading and write sizes yourself, for example sizes=\"100vw\"."
-msgstr ""
+msgstr "sizes=\"auto\" lascia che sia il browser a misurare l’immagine e richiede loading=\"lazy\". Per un’immagine subito visibile togli il caricamento differito e scrivi sizes a mano, ad esempio sizes=\"100vw\"."
 
 #: admin/class-sfir-admin.php:864
 msgid "5. A custom responsive srcset"
-msgstr ""
+msgstr "5. Un srcset responsive su misura"
 
 #: admin/class-sfir-admin.php:865
 msgid "Use this variant only when you know exactly what size the image is rendered at in each place of your site, and want to control the widths and the sizes attribute yourself. In every other case example 4 is simpler and harder to get wrong."
-msgstr ""
+msgstr "Usa questa variante solo se sai esattamente a che dimensione viene mostrata l’immagine in ogni punto del sito e vuoi controllare tu le larghezze e l’attributo sizes. In tutti gli altri casi l’esempio 4 è più semplice e più difficile da sbagliare."
 
 #: admin/class-sfir-admin.php:868
 msgid "Error codes"
-msgstr ""
+msgstr "Codici di errore"
 
 #: admin/class-sfir-admin.php:872
 msgid "Code"
-msgstr ""
+msgstr "Codice"
 
 #: admin/class-sfir-admin.php:873
 msgid "Meaning"
-msgstr ""
+msgstr "Significato"
 
 #: admin/class-sfir-admin.php:886
 msgid "How the URL is built"
-msgstr ""
+msgstr "Come è costruito l’URL"
 
 #: admin/class-sfir-admin.php:887
 msgid "Cached copies mirror the directory tree of their source inside the cache directory, and the file name carries the parameters plus a short signature:"
-msgstr ""
+msgstr "Le copie in cache rispecchiano l’albero delle cartelle dell’originale dentro la cartella della cache, e il nome del file contiene i parametri più una breve firma:"
 
 #: admin/class-sfir-admin.php:891
 msgid "The bg part appears only when a background colour was requested. The hash is six hexadecimal characters of an HMAC over the source path and the parameters; it lets the plugin create only the sizes your templates actually ask for, and cannot be guessed to fill the disk."
-msgstr ""
+msgstr "La parte bg compare solo se è stato richiesto un colore di sfondo. L’hash è composto da sei caratteri esadecimali di un HMAC sul percorso dell’originale e sui parametri: permette di creare soltanto le dimensioni che i tuoi template richiedono davvero e non può essere indovinato per riempire il disco."
 
 #: admin/class-sfir-admin.php:894
 msgid "Notes"
-msgstr ""
+msgstr "Note"
 
 #: admin/class-sfir-admin.php:896
 msgid "WebP fallback: if this PHP build has no WebP support, JPG is produced instead and the cached file gets a .jpg extension. A single notice is written to the log."
-msgstr ""
+msgstr "Ripiego su WebP: se questa build di PHP non supporta WebP viene prodotto JPG e il file in cache riceve l’estensione .jpg. Nel registro viene scritta una sola nota."
 
 #: admin/class-sfir-admin.php:897
 msgid "Animated GIF: only the first frame is used, animation is not preserved."
-msgstr ""
+msgstr "GIF animata: viene usato solo il primo fotogramma, l’animazione non è conservata."
 
 #: admin/class-sfir-admin.php:898
 msgid "SVG files are not accepted as input."
-msgstr ""
+msgstr "I file SVG non sono accettati come sorgente."
 
 #: admin/class-sfir-admin.php:899
 msgid "Every call returns the same plain URL of the cached file, from the very first render. When that file does not exist yet, the request falls through to WordPress and the plugin generates it; afterwards the web server serves it as a static file and PHP is no longer involved."
-msgstr ""
+msgstr "Ogni chiamata restituisce sempre lo stesso URL semplice del file in cache, fin dal primo render. Finché quel file non esiste la richiesta arriva a WordPress e il plugin lo genera; poi il web server lo serve come file statico e PHP non è più coinvolto."
 
 #: admin/class-sfir-admin.php:900
 msgid "On nginx, .htaccess files are ignored. Deny direct access to the logs directory in your server configuration."
-msgstr ""
+msgstr "Su nginx i file .htaccess vengono ignorati. Nega l’accesso diretto alla cartella logs nella configurazione del server."
 
 #: admin/class-sfir-admin.php:919
 msgid "Reference for an AI assistant"
-msgstr ""
+msgstr "Riferimento per un assistente IA"
 
 #: admin/class-sfir-admin.php:920
 msgid "The whole reference below is written for a language model. Copy it into Claude, ChatGPT or any other assistant together with your own template, and it will have everything it needs to output correct src and srcset markup with this plugin."
-msgstr ""
+msgstr "L’intero riferimento qui sotto è scritto per un modello linguistico. Copialo in Claude, ChatGPT o un altro assistente insieme al tuo template: avrà tutto il necessario per produrre il markup corretto di src e srcset con questo plugin."
 
 #: admin/class-sfir-admin.php:925
 msgid "Copy"
-msgstr ""
+msgstr "Copia"
 
 #: admin/class-sfir-admin.php:929
 msgid "Download .md"
-msgstr ""
+msgstr "Scarica il .md"
 
 #: includes/class-sfir-diagnostics.php:278
 msgid "Unknown check."
-msgstr ""
+msgstr "Verifica sconosciuta."
 
 #: includes/class-sfir-generator.php:76
 msgid "Automatic"
-msgstr ""
+msgstr "Automatico"
 
 #: includes/class-sfir-generator.php:77
 msgid "Generate every size up front, while the page is built"
-msgstr ""
+msgstr "Creare tutte le dimensioni in anticipo, mentre la pagina viene costruita"
 
 #: includes/class-sfir-generator.php:78
 msgid "Generate each size when a visitor's browser asks for it"
-msgstr ""
+msgstr "Creare ogni dimensione quando la chiede il browser di un visitatore"
 
 #: includes/class-sfir-i18n.php:47
 msgid "Site language"
-msgstr ""
+msgstr "Lingua del sito"
 
 #: includes/class-sfir-placeholder.php:36
 msgid "Source file not found, or path outside the allowed directories."
-msgstr ""
+msgstr "File di origine non trovato, o percorso fuori dalle cartelle consentite."
 
 #: includes/class-sfir-placeholder.php:37
 msgid "Unsupported or unrecognised input file format."
-msgstr ""
+msgstr "Formato del file di ingresso non supportato o non riconosciuto."
 
 #: includes/class-sfir-placeholder.php:38
 msgid "External URL or disallowed scheme."
-msgstr ""
+msgstr "URL esterno o schema non consentito."
 
 #: includes/class-sfir-placeholder.php:39
 msgid "Invalid request parameters or invalid signature."
-msgstr ""
+msgstr "Parametri della richiesta o firma non validi."
 
 #: includes/class-sfir-placeholder.php:40
 msgid "GD processing error."
-msgstr ""
+msgstr "Errore di elaborazione GD."
 
 #: includes/class-sfir-placeholder.php:41
 msgid "Cache directory is not writable."
-msgstr ""
+msgstr "La cartella della cache non è scrivibile."
 
 #: includes/class-sfir-placeholder.php:42
 msgid "Image is too large to process (memory or pixel limit)."
-msgstr ""
+msgstr "Immagine troppo grande da elaborare (limite di memoria o di pixel)."
 
 #: includes/class-sfir-placeholder.php:121
 msgid "Image error"
-msgstr ""
+msgstr "Errore immagine"
 
 #: sf-image-resizer.php:118
 msgid "Settings"
-msgstr ""
+msgstr "Impostazioni"

@@ -25,37 +25,54 @@ $fixtures = sfir_build_fixtures();
 SFIR_Cache::clear();
 sfir_reset_log();
 
+// Sections 1 to 11 describe what happens when a browser asks for a file that
+// is not there yet, so they pin the mode that leaves generation to that
+// request. The 1.3.0 group at the bottom exercises the other two modes.
+SFIR_Generator::set_mode( SFIR_Generator::MODE_NEVER );
+SFIR_Cache::flush_runtime_cache();
+
 /* ---------------------------------------------------------------------------
- * 1. Generation and caching.
+ * 1. Pretty URLs, generation and caching.
  * ------------------------------------------------------------------------ */
 
-SFIR_TestRunner::group( '11.2.1 generation and cache' );
+SFIR_TestRunner::group( '11.2.1 pretty cache URLs' );
 
 $jpeg_url = sfir_path_to_url( $fixtures['jpeg'] );
 
 $first = sf_img( $jpeg_url, 'w=900&q=75&f=webp' );
 
 SFIR_TestRunner::check(
-	false !== strpos( $first, 'sfir_generate=1' ),
-	'first call returns a signed generation URL',
+	false === strpos( $first, '?' ),
+	'the first call returns a URL without any query string',
 	$first
 );
 
+SFIR_TestRunner::check(
+	(bool) preg_match( '#/cache_images/sfir-fixtures/2026/08/landscape-900x0-c0-q75-[a-f0-9]{6}\.webp$#', $first ),
+	'the URL follows the documented cache file naming scheme',
+	$first
+);
+
+$cache_file = sfir_url_to_path( $first );
+
+SFIR_TestRunner::check( ! file_exists( $cache_file ), 'the file does not exist yet' );
+
 $response = sfir_fetch( $first );
 
-SFIR_TestRunner::equals( 200, $response['status'], 'endpoint answers 200' );
-SFIR_TestRunner::equals( 'image/webp', isset( $response['headers']['content-type'] ) ? $response['headers']['content-type'] : '', 'endpoint announces image/webp' );
+SFIR_TestRunner::equals( 200, $response['status'], 'requesting the missing file answers 200' );
+SFIR_TestRunner::equals( 'generated', isset( $response['headers']['x-sfir'] ) ? $response['headers']['x-sfir'] : '', 'the plugin handled the request' );
+SFIR_TestRunner::equals( 'image/webp', isset( $response['headers']['content-type'] ) ? $response['headers']['content-type'] : '', 'the answer is a WebP image' );
 SFIR_TestRunner::equals(
 	'public, max-age=31536000, immutable',
 	isset( $response['headers']['cache-control'] ) ? $response['headers']['cache-control'] : '',
-	'endpoint sends an immutable Cache-Control'
+	'the answer carries an immutable Cache-Control'
 );
 SFIR_TestRunner::equals(
 	'nosniff',
 	isset( $response['headers']['x-content-type-options'] ) ? $response['headers']['x-content-type-options'] : '',
-	'endpoint sends X-Content-Type-Options: nosniff'
+	'the answer carries X-Content-Type-Options: nosniff'
 );
-SFIR_TestRunner::check( isset( $response['headers']['last-modified'] ), 'endpoint sends Last-Modified' );
+SFIR_TestRunner::check( isset( $response['headers']['last-modified'] ), 'the answer carries Last-Modified' );
 SFIR_TestRunner::equals(
 	(string) strlen( $response['body'] ),
 	isset( $response['headers']['content-length'] ) ? $response['headers']['content-length'] : '',
@@ -63,60 +80,212 @@ SFIR_TestRunner::equals(
 );
 
 $info = sfir_image_info( $response['body'] );
-SFIR_TestRunner::check( is_array( $info ) && 900 === $info['width'] && 450 === $info['height'], 'body is a 900x450 image', wp_json_encode( $info ) );
-SFIR_TestRunner::equals( 'image/webp', is_array( $info ) ? $info['mime'] : '', 'body is a WebP image' );
+SFIR_TestRunner::check( is_array( $info ) && 900 === $info['width'] && 450 === $info['height'], 'the answer is a 900x450 image', wp_json_encode( $info ) );
 
-$expected_cache = SFIR_Cache::get_cache_dir() . '/sfir-fixtures/2026/08/landscape-900x0-c0-q75.webp';
-
-SFIR_TestRunner::check(
-	file_exists( $expected_cache ),
-	'cache file mirrors the source directory tree with the documented name',
-	$expected_cache
-);
+clearstatcache();
+SFIR_TestRunner::check( file_exists( $cache_file ), 'the cache file now exists, mirroring the source tree', $cache_file );
 
 $second = sf_img( $jpeg_url, 'w=900&q=75&f=webp' );
 
+SFIR_TestRunner::equals( $first, $second, 'the second call returns byte-for-byte the same URL' );
+
+$again = sfir_fetch( $second );
+
+SFIR_TestRunner::equals( 200, $again['status'], 'the second HTTP request also answers 200' );
 SFIR_TestRunner::check(
-	false === strpos( $second, 'sfir_generate' ) && false !== strpos( $second, 'cache_images/sfir-fixtures/2026/08/landscape-900x0-c0-q75.webp' ),
-	'second call returns the static cache URL',
-	$second
+	! isset( $again['headers']['x-sfir'] ),
+	'the second HTTP request is served statically, without touching the plugin',
+	isset( $again['headers']['x-sfir'] ) ? $again['headers']['x-sfir'] : ''
 );
 
-$static = sfir_fetch( $second );
-SFIR_TestRunner::equals( 200, $static['status'], 'the static cache URL is served by the web server' );
-
 /* ---------------------------------------------------------------------------
- * 1b. The plain query string fallback, used when permalinks are disabled.
+ * 1b. A tampered or unsigned name is refused.
  * ------------------------------------------------------------------------ */
 
-SFIR_TestRunner::group( '11.2.1 permalink fallback' );
+SFIR_TestRunner::group( '11.2.1 signature in the file name' );
+
+sfir_reset_log();
+
+$signed    = sf_img( $jpeg_url, 'w=412&f=jpg' );
+$corrupted = sfir_corrupt_hash( $signed );
+
+SFIR_TestRunner::check( $signed !== $corrupted, 'the test really changed one character of the hash' );
+
+$bad = sfir_http( sfir_test_url( $corrupted ) );
+
+SFIR_TestRunner::equals( 403, $bad['status'], 'a tampered hash is answered with 403' );
+SFIR_TestRunner::check( false !== strpos( $bad['body'], 'E04' ), 'a tampered hash yields an E04 placeholder' );
+SFIR_TestRunner::check( ! file_exists( sfir_url_to_path( $corrupted ) ), 'no file was created for the tampered name' );
+SFIR_TestRunner::check( false !== strpos( sfir_read_log(), '[E04]' ), 'the refusal is recorded in the log' );
+
+$traversal = str_replace( '/sfir-fixtures/2026/08/', '/sfir-fixtures/2026/08/..%2f..%2f', $signed );
+$refused   = sfir_http( sfir_test_url( $traversal ) );
+
+SFIR_TestRunner::check(
+	in_array( $refused['status'], array( 403, 404 ), true ),
+	'path traversal inside the cache tree is refused',
+	(string) $refused['status']
+);
+SFIR_TestRunner::equals(
+	0,
+	count( (array) glob( SFIR_Cache::get_cache_dir() . '/sfir-fixtures/landscape-412*' ) ),
+	'traversal created no file outside the mirrored tree'
+);
+
+SFIR_Cache::flush_runtime_cache();
+
+/* ---------------------------------------------------------------------------
+ * 1c. The retired sfir-generate endpoint is gone.
+ * ------------------------------------------------------------------------ */
+
+SFIR_TestRunner::group( '11.2.1 retired endpoint' );
+
+$retired = sfir_http( $base_url . '/sfir-generate/?sfir_generate=1&src=u%3Asfir-fixtures%2F2026%2F08%2Flandscape.jpg&p=w%3D100' );
+
+SFIR_TestRunner::equals( 404, $retired['status'], 'the old sfir-generate route is no longer handled' );
+SFIR_TestRunner::check(
+	false === strpos( (string) ( isset( $retired['headers']['content-type'] ) ? $retired['headers']['content-type'] : '' ), 'image/' ),
+	'the old route does not answer with an image'
+);
+
+$rules = get_option( 'rewrite_rules' );
+SFIR_TestRunner::check(
+	! is_array( $rules ) || ! isset( $rules['^sfir-generate/?$'] ),
+	'the old rewrite rule is no longer registered'
+);
+
+/* ---------------------------------------------------------------------------
+ * 1d. The URL does not depend on the permalink structure.
+ * ------------------------------------------------------------------------ */
+
+SFIR_TestRunner::group( '11.2.1 permalinks' );
 
 $saved_structure = get_option( 'permalink_structure' );
+
+$with_permalinks = sf_img( $jpeg_url, 'w=321&f=jpg' );
 
 update_option( 'permalink_structure', '' );
 SFIR_Cache::flush_runtime_cache();
 
-$plain = sf_img( $jpeg_url, 'w=321&f=jpg' );
+$without_permalinks = sf_img( $jpeg_url, 'w=321&f=jpg' );
 
-SFIR_TestRunner::check(
-	false !== strpos( $plain, '/?sfir_generate=1' ),
-	'without permalinks the generation URL falls back to a plain query string',
-	$plain
-);
+SFIR_TestRunner::equals( $with_permalinks, $without_permalinks, 'the cache URL is the same with and without pretty permalinks' );
 
-$plain_response = sfir_fetch( $plain );
+$plain_response = sfir_fetch( $without_permalinks );
 
-SFIR_TestRunner::equals( 200, $plain_response['status'], 'the query string endpoint answers 200' );
+SFIR_TestRunner::equals( 200, $plain_response['status'], 'generation works with permalinks disabled' );
 
 $plain_info = sfir_image_info( $plain_response['body'] );
 
 SFIR_TestRunner::check(
 	is_array( $plain_info ) && 321 === $plain_info['width'] && 'image/jpeg' === $plain_info['mime'],
-	'the query string endpoint produces the requested image',
+	'the produced image is correct with permalinks disabled',
 	wp_json_encode( $plain_info )
 );
 
 update_option( 'permalink_structure', $saved_structure );
+SFIR_Cache::flush_runtime_cache();
+
+/* ---------------------------------------------------------------------------
+ * 1e. sf_img_srcset(), the universal responsive helper.
+ * ------------------------------------------------------------------------ */
+
+SFIR_TestRunner::group( '1.2.0 sf_img_srcset' );
+
+SFIR_Cache::flush_runtime_cache();
+
+$srcset = sf_img_srcset( $jpeg_url );
+
+SFIR_TestRunner::check( '' !== $srcset, 'the helper returns a srcset', $srcset );
+
+$candidates = array_map( 'trim', explode( ',', $srcset ) );
+
+SFIR_TestRunner::equals( 6, count( $candidates ), 'a 2000x1000 source yields six candidates', wp_json_encode( $candidates ) );
+
+$descriptors = array();
+$urls        = array();
+
+foreach ( $candidates as $candidate ) {
+	$parts = explode( ' ', $candidate );
+
+	SFIR_TestRunner::check( 2 === count( $parts ), 'the candidate is "url NNNw"', $candidate );
+
+	$urls[]        = $parts[0];
+	$descriptors[] = $parts[1];
+}
+
+SFIR_TestRunner::equals(
+	array( '320w', '640w', '960w', '1280w', '1920w', '2000w' ),
+	$descriptors,
+	'descriptors carry the real widths, ascending, capped at the source width'
+);
+
+SFIR_TestRunner::equals( count( $urls ), count( array_unique( $urls ) ), 'every candidate has its own URL' );
+
+SFIR_TestRunner::check(
+	false === strpos( $srcset, '?' ) && false !== strpos( $srcset, '/cache_images/' ),
+	'the candidates are plain cache URLs'
+);
+
+// The widths really are what the descriptors claim.
+$checked = 0;
+
+foreach ( array( 0, 3, 5 ) as $index ) {
+	$response = sfir_http( sfir_test_url( $urls[ $index ] ) );
+	$info     = sfir_image_info( $response['body'] );
+	$expected = (int) rtrim( $descriptors[ $index ], 'w' );
+
+	if ( SFIR_TestRunner::check(
+		200 === $response['status'] && is_array( $info ) && $expected === $info['width'],
+		'candidate ' . $descriptors[ $index ] . ' really is ' . $expected . ' pixels wide',
+		wp_json_encode( $info )
+	) ) {
+		++$checked;
+	}
+}
+
+SFIR_TestRunner::equals( 3, $checked, 'the sampled candidates all matched' );
+
+SFIR_Cache::flush_runtime_cache();
+
+// A small source must not be padded with duplicates.
+$small_srcset    = sf_img_srcset( sfir_path_to_url( $fixtures['small'] ) );
+$small_candidates = array_map( 'trim', explode( ',', $small_srcset ) );
+
+SFIR_TestRunner::equals( 2, count( $small_candidates ), 'a 400x300 source yields only the widths it can fill', $small_srcset );
+SFIR_TestRunner::check( false !== strpos( $small_srcset, ' 320w' ), 'the small source offers 320w' );
+SFIR_TestRunner::check( false !== strpos( $small_srcset, ' 400w' ), 'the largest candidate is the source width' );
+SFIR_TestRunner::check( false === strpos( $small_srcset, ' 2560w' ), 'no candidate claims a width the source cannot fill' );
+
+// Parameters and custom ladders.
+SFIR_Cache::flush_runtime_cache();
+
+$jpg_srcset = sf_img_srcset( $jpeg_url, 'f=jpg&q=60' );
+
+SFIR_TestRunner::check( false !== strpos( $jpg_srcset, '-q60-' ) && false !== strpos( $jpg_srcset, '.jpg ' ), 'parameters reach the candidates', $jpg_srcset );
+
+$custom = sf_img_srcset( $jpeg_url, '', array( 500, 1000 ) );
+
+SFIR_TestRunner::equals( 2, count( explode( ',', $custom ) ), 'a custom ladder is honoured' );
+SFIR_TestRunner::check( false !== strpos( $custom, ' 500w' ) && false !== strpos( $custom, ' 1000w' ), 'the custom widths are used', $custom );
+
+// w, h and crop in the parameters must not disturb the ladder.
+$ignored = sf_img_srcset( $jpeg_url, 'w=100&h=100&crop=1', array( 500 ) );
+
+SFIR_TestRunner::check( false !== strpos( $ignored, ' 500w' ) && false !== strpos( $ignored, '-500x0-c0-' ), 'w, h and crop are ignored', $ignored );
+
+// A source that cannot be used yields nothing to put in the attribute.
+SFIR_TestRunner::equals( '', sf_img_srcset( '/nope/missing.jpg' ), 'an unusable source yields an empty string' );
+SFIR_TestRunner::equals( '', sf_img_srcset( sfir_path_to_url( $fixtures['text'] ) ), 'a text file yields an empty string' );
+SFIR_TestRunner::equals( '', sf_img_srcset( 'https://example.com/x.jpg' ), 'an external URL yields an empty string' );
+
+SFIR_Cache::flush_runtime_cache();
+
+// The helper agrees with the single-image functions.
+$first_url = explode( ' ', trim( explode( ',', sf_img_srcset( $jpeg_url ) )[0] ) )[0];
+
+SFIR_TestRunner::equals( sf_img( $jpeg_url, 'w=320' ), $first_url, 'a candidate is the same URL sf_img() would return' );
+
 SFIR_Cache::flush_runtime_cache();
 
 /* ---------------------------------------------------------------------------
@@ -203,8 +372,9 @@ SFIR_TestRunner::check(
 	wp_json_encode( $corner )
 );
 
-SFIR_TestRunner::check(
-	file_exists( SFIR_Cache::get_cache_dir() . '/sfir-fixtures/2026/08/transparent-400x0-c0-q75-bgFF0000.webp' ),
+SFIR_TestRunner::equals(
+	1,
+	count( (array) glob( SFIR_Cache::get_cache_dir() . '/sfir-fixtures/2026/08/transparent-400x0-c0-q75-bgFF0000-*.webp' ) ),
 	'an explicit background becomes part of the cache file name'
 );
 
@@ -284,16 +454,19 @@ foreach ( array( '/wp-config.php', '/wp-content/uploads/../../wp-config.php', "/
 	SFIR_TestRunner::check( in_array( $code, array( 'E01', 'E02' ), true ), 'traversal rejected: ' . str_replace( "\0", '\\0', $traversal ), $code );
 }
 
-$signed  = sf_img( $jpeg_url, 'w=333&f=jpg' );
-$tampered = str_replace( 'w%3D333', 'w%3D334', sfir_test_url( $signed ) );
-$bad      = sfir_http( $tampered );
+$signed   = sf_img( $jpeg_url, 'w=333&f=jpg' );
+$tampered = sfir_http( sfir_test_url( sfir_corrupt_hash( $signed ) ) );
 SFIR_Cache::flush_runtime_cache();
 
-SFIR_TestRunner::equals( 403, $bad['status'], 'a tampered signature is answered with 403' );
-SFIR_TestRunner::check( false !== strpos( $bad['body'], 'E04' ), 'a tampered signature yields an E04 placeholder' );
+SFIR_TestRunner::equals( 403, $tampered['status'], 'a tampered signature is answered with 403' );
+SFIR_TestRunner::check( false !== strpos( $tampered['body'], 'E04' ), 'a tampered signature yields an E04 placeholder' );
 
-$unsigned = sfir_http( $base_url . '/sfir-generate/?sfir_generate=1&src=u%3Asfir-fixtures%2F2026%2F08%2Flandscape.jpg&p=w%3D100%26h%3D0%26f%3Djpg%26q%3D75%26crop%3D0%26bg%3D' );
-SFIR_TestRunner::equals( 403, $unsigned['status'], 'a request without a signature is answered with 403' );
+$unsigned = sfir_http( sfir_test_url( str_replace( sfir_hash_of( $signed ), '', $signed ) ) );
+SFIR_TestRunner::check(
+	in_array( $unsigned['status'], array( 403, 404 ), true ),
+	'a name without a signature is refused',
+	(string) $unsigned['status']
+);
 
 $log = sfir_read_log();
 
@@ -332,17 +505,18 @@ imagedestroy( $image );
 
 $changing_url = sfir_path_to_url( $invalidation_source );
 
-sfir_fetch( sf_img( $changing_url, 'w=200&f=jpg' ) );
+$changing_first = sf_img( $changing_url, 'w=200&f=jpg' );
+sfir_fetch( $changing_first );
 
-$cache_file = SFIR_Cache::get_cache_dir() . '/sfir-fixtures/2026/08/changing-200x0-c0-q75.jpg';
-SFIR_TestRunner::check( file_exists( $cache_file ), 'the cache file exists before the source changes' );
+$cache_file = sfir_url_to_path( $changing_first );
+clearstatcache();
+SFIR_TestRunner::check( file_exists( $cache_file ), 'the cache file exists before the source changes', $cache_file );
 
 $before_pixel = sfir_pixel( file_get_contents( $cache_file ), 100, 50 );
 
-SFIR_TestRunner::check(
-	false === strpos( sf_img( $changing_url, 'w=200&f=jpg' ), 'sfir_generate' ),
-	'a fresh cache file yields a static URL'
-);
+$url_before = sf_img( $changing_url, 'w=200&f=jpg' );
+
+SFIR_TestRunner::check( file_exists( $cache_file ), 'the cache file is present while it is fresh' );
 
 // Rewrite the source with different content and a newer modification time.
 $image = imagecreatetruecolor( 800, 400 );
@@ -356,10 +530,13 @@ SFIR_Cache::flush_runtime_cache();
 
 $after_change = sf_img( $changing_url, 'w=200&f=jpg' );
 
+SFIR_TestRunner::equals( $url_before, $after_change, 'the URL is unchanged after the source was rewritten' );
+
+clearstatcache();
+
 SFIR_TestRunner::check(
-	false !== strpos( $after_change, 'sfir_generate' ),
-	'a stale cache file yields a generation URL again',
-	$after_change
+	! file_exists( $cache_file ),
+	'a stale cache file is dropped, so the next request regenerates it'
 );
 
 sfir_fetch( $after_change );
@@ -504,7 +681,7 @@ $info_b = sfir_image_info( $concurrent[1]['body'] );
 
 SFIR_TestRunner::check( is_array( $info_a ) && is_array( $info_b ), 'both concurrent responses are valid images' );
 
-$concurrent_files = glob( SFIR_Cache::get_cache_dir() . '/sfir-fixtures/2026/08/landscape-1234x700-c1-q81.*' );
+$concurrent_files = (array) glob( SFIR_Cache::get_cache_dir() . '/sfir-fixtures/2026/08/landscape-1234x700-c1-q81-*.*' );
 SFIR_TestRunner::equals( 1, count( $concurrent_files ), 'exactly one cache file was produced' );
 
 $locks = array();
@@ -535,14 +712,15 @@ foreach ( $variants as $variant ) {
 	$pass_one[] = sf_img( $jpeg_url, $variant );
 }
 
-$dynamic = 0;
+$pretty = 0;
 foreach ( $pass_one as $url ) {
-	if ( false !== strpos( $url, 'sfir_generate' ) ) {
-		++$dynamic;
+	if ( false === strpos( $url, '?' ) && false !== strpos( $url, '/cache_images/' ) ) {
+		++$pretty;
 	}
 }
 
-SFIR_TestRunner::equals( 30, $dynamic, 'the first render returns 30 generation URLs' );
+SFIR_TestRunner::equals( 30, $pretty, 'the first render already returns 30 plain cache URLs' );
+SFIR_TestRunner::equals( 0, count( sfir_cached_files() ), 'none of them exists on disk yet' );
 
 foreach ( $pass_one as $url ) {
 	sfir_fetch( $url );
@@ -551,14 +729,14 @@ foreach ( $pass_one as $url ) {
 SFIR_Cache::flush_runtime_cache();
 clearstatcache();
 
-$static_count = 0;
-foreach ( $variants as $variant ) {
-	if ( false === strpos( sf_img( $jpeg_url, $variant ), 'sfir_generate' ) ) {
-		++$static_count;
+$identical = 0;
+foreach ( $variants as $index => $variant ) {
+	if ( sf_img( $jpeg_url, $variant ) === $pass_one[ $index ] ) {
+		++$identical;
 	}
 }
 
-SFIR_TestRunner::equals( 30, $static_count, 'the second render returns 30 static URLs' );
+SFIR_TestRunner::equals( 30, $identical, 'the second render returns the same 30 URLs' );
 SFIR_TestRunner::equals( 30, count( sfir_cached_files() ), 'exactly 30 files sit in the cache' );
 
 /* ---------------------------------------------------------------------------
@@ -621,5 +799,123 @@ SFIR_TestRunner::check( false === strpos( $rotated, 'filler line 1 ' ), 'the old
 SFIR_TestRunner::check( false !== strpos( $rotated, 'line written after the limit was exceeded' ), 'the new line is appended' );
 
 sfir_reset_log();
+
+/* --------------------------------------------------------------------------
+ * 1.3.0: producing the copy while the page renders.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.3.0 render-time generation' );
+
+// Mode "never" is the behaviour every earlier version had.
+SFIR_Generator::set_mode( SFIR_Generator::MODE_NEVER );
+SFIR_Cache::flush_runtime_cache();
+
+SFIR_TestRunner::check( ! SFIR_Generator::is_eager(), 'mode "never" leaves generation to the request' );
+
+$lazy_url  = sf_img( $jpeg_url, 'w=311&f=jpg' );
+$lazy_path = sfir_url_to_path( $lazy_url );
+clearstatcache();
+
+SFIR_TestRunner::check( ! file_exists( $lazy_path ), 'nothing is written to disk while rendering' );
+SFIR_TestRunner::check( false !== strpos( $lazy_url, '-311x0-c0-q75-' ), 'the URL is still the cache file', $lazy_url );
+
+// Mode "always" produces the file before the markup leaves the template.
+SFIR_Generator::set_mode( SFIR_Generator::MODE_ALWAYS );
+SFIR_Cache::flush_runtime_cache();
+
+SFIR_TestRunner::check( SFIR_Generator::is_eager(), 'mode "always" produces copies while rendering' );
+
+$eager_url  = sf_img( $jpeg_url, 'w=312&f=jpg' );
+$eager_path = sfir_url_to_path( $eager_url );
+clearstatcache();
+
+SFIR_TestRunner::check( file_exists( $eager_path ), 'the file is on disk as soon as sf_img() returns', $eager_path );
+SFIR_TestRunner::check( false !== strpos( $eager_url, '-312x0-c0-q75-' ), 'the URL is the cache file, not the original', $eager_url );
+
+$eager_size = getimagesize( $eager_path );
+
+SFIR_TestRunner::equals( 312, is_array( $eager_size ) ? $eager_size[0] : 0, 'the copy really has the requested width' );
+SFIR_TestRunner::equals( 'image/jpeg', is_array( $eager_size ) ? $eager_size['mime'] : '', 'the copy really has the requested format' );
+
+// The web server can now answer without PHP, which is the whole point.
+$static = sfir_fetch( $eager_url );
+
+SFIR_TestRunner::equals( 200, $static['status'], 'the browser gets the file straight from disk' );
+SFIR_TestRunner::check( ! isset( $static['headers']['x-sfir'] ), 'the plugin was not involved in serving it' );
+
+// Every candidate of a srcset is produced too.
+SFIR_Cache::flush_runtime_cache();
+
+$eager_set        = sf_img_srcset( $jpeg_url, 'q=71' );
+$eager_candidates = array_map( 'trim', explode( ',', $eager_set ) );
+$eager_missing    = 0;
+$eager_wrong      = 0;
+
+foreach ( $eager_candidates as $candidate ) {
+	$parts = explode( ' ', $candidate );
+	$path  = sfir_url_to_path( $parts[0] );
+	clearstatcache();
+
+	if ( ! is_file( $path ) ) {
+		++$eager_missing;
+		continue;
+	}
+
+	$dimensions = getimagesize( $path );
+
+	if ( ! is_array( $dimensions ) || (int) $dimensions[0] !== (int) rtrim( $parts[1], 'w' ) ) {
+		++$eager_wrong;
+	}
+}
+
+SFIR_TestRunner::check( count( $eager_candidates ) > 1, 'the srcset has several candidates', (string) count( $eager_candidates ) );
+SFIR_TestRunner::equals( 0, $eager_missing, 'every srcset candidate exists on disk' );
+SFIR_TestRunner::equals( 0, $eager_wrong, 'every srcset candidate really has the width it claims' );
+
+// A request that has used up its budget degrades to the untouched original
+// rather than to a URL with no file behind it.
+SFIR_Cache::flush_runtime_cache();
+
+$exhaust = function () {
+	return array(
+		'files'   => 0,
+		'seconds' => 0.0,
+	);
+};
+
+add_filter( 'sfir_generation_budget', $exhaust );
+
+$broke_url = sf_img( $jpeg_url, 'w=313&f=jpg' );
+
+SFIR_TestRunner::equals( $jpeg_url, $broke_url, 'sf_img() falls back to the original' );
+SFIR_TestRunner::equals( 2000, sf_img_width( $jpeg_url, 'w=313&f=jpg' ), 'the reported width is the width of that original' );
+SFIR_TestRunner::equals( 1000, sf_img_height( $jpeg_url, 'w=313&f=jpg' ), 'the reported height matches it' );
+
+$fallback_probe = sfir_fetch( $broke_url );
+
+SFIR_TestRunner::equals( 200, $fallback_probe['status'], 'the fallback URL really resolves to an image' );
+
+SFIR_Cache::flush_runtime_cache();
+
+SFIR_TestRunner::equals( '', sf_img_srcset( $jpeg_url, 'q=72' ), 'a srcset with nothing generated is empty, never wrong' );
+
+remove_filter( 'sfir_generation_budget', $exhaust );
+
+// The browser check must keep testing the request path, so its probe URL is
+// never one of the files rendering produced.
+SFIR_Cache::flush_runtime_cache();
+
+$probe_url  = SFIR_Diagnostics::get_probe_url();
+$probe_path = sfir_url_to_path( $probe_url );
+clearstatcache();
+
+SFIR_TestRunner::check( '' !== $probe_url, 'the check still builds a probe URL' );
+SFIR_TestRunner::check( ! file_exists( $probe_path ), 'the probe file is deliberately missing even in eager mode', $probe_path );
+
+// Leave the site on the default the plugin ships with.
+delete_option( SFIR_Generator::MODE_OPTION );
+SFIR_Cache::flush_runtime_cache();
+
+SFIR_TestRunner::equals( SFIR_Generator::MODE_AUTO, SFIR_Generator::get_mode(), 'the mode is back to the shipped default' );
 
 exit( SFIR_TestRunner::summary() );

@@ -118,7 +118,9 @@ jobs:
 
       - name: Start the web server
         run: |
-          php -S 127.0.0.1:8899 -t "$SFIR_WP_DIR" \
+          # More than one worker: the admin self-check makes a loopback request,
+          # which a single worker built-in server would deadlock on.
+          PHP_CLI_SERVER_WORKERS=6 php -S 127.0.0.1:8899 -t "$SFIR_WP_DIR" \
               "${{ github.workspace }}/plugin-src/tests/integration/router.php" \
               > "${{ runner.temp }}/server.log" 2>&1 &
           for i in $(seq 1 30); do

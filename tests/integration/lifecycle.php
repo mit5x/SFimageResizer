@@ -30,11 +30,24 @@ if ( is_dir( $base_dir ) ) {
 	foreach ( array_reverse( sfir_list_files( $base_dir ) ) as $file ) {
 		unlink( $file );
 	}
-	foreach ( array( '/cache_images', '/logs', '' ) as $suffix ) {
-		if ( is_dir( $base_dir . $suffix ) ) {
-			@rmdir( $base_dir . $suffix );
+
+	$directories = array();
+	$iterator    = new RecursiveIteratorIterator(
+		new RecursiveDirectoryIterator( $base_dir, FilesystemIterator::SKIP_DOTS ),
+		RecursiveIteratorIterator::CHILD_FIRST
+	);
+
+	foreach ( $iterator as $entry ) {
+		if ( $entry->isDir() ) {
+			$directories[] = $entry->getPathname();
 		}
 	}
+
+	foreach ( $directories as $directory ) {
+		@rmdir( $directory );
+	}
+
+	@rmdir( $base_dir );
 }
 
 delete_option( SFIR_Security::SECRET_OPTION );
@@ -59,9 +72,23 @@ SFIR_TestRunner::check( is_string( $secret ) && strlen( $secret ) >= 32, 'activa
 $rules = get_option( 'rewrite_rules' );
 
 SFIR_TestRunner::check(
-	is_array( $rules ) && isset( $rules['^sfir-generate/?$'] ),
-	'activation registers the generation rewrite rule'
+	! is_array( $rules ) || ! isset( $rules['^sfir-generate/?$'] ),
+	'activation registers no rewrite rule for the retired endpoint'
 );
+
+$htaccess = (string) file_get_contents( $base_dir . '/cache_images/.htaccess' );
+
+SFIR_TestRunner::check(
+	false !== strpos( $htaccess, 'RewriteCond %{REQUEST_FILENAME} !-f' ) && false !== strpos( $htaccess, 'index.php' ),
+	'the cache .htaccess routes missing files to WordPress'
+);
+
+SFIR_TestRunner::check(
+	false !== strpos( $htaccess, 'Options -Indexes' ),
+	'the cache .htaccess still forbids directory listing'
+);
+
+SFIR_TestRunner::equals( SFIR_VERSION, get_option( 'sfir_version' ), 'activation records the plugin version' );
 
 /* --------------------------------------------------------------------------
  * Deactivation keeps everything.
@@ -102,10 +129,17 @@ SFIR_TestRunner::group( '11.2.13 uninstall' );
 
 set_transient( 'sfir_size_' . md5( 'lifecycle-probe' ), array( 'mtime' => 1 ), HOUR_IN_SECONDS );
 update_option( SFIR_Logger::NOTICE_OPTION, array( 'probe' => 1 ), false );
+update_user_meta( 1, 'sfir_admin_locale', 'ru_RU' );
+SFIR_Generator::set_mode( SFIR_Generator::MODE_ALWAYS );
 
 SFIR_TestRunner::check(
 	false !== get_transient( 'sfir_size_' . md5( 'lifecycle-probe' ) ),
 	'a plugin transient exists before uninstall'
+);
+SFIR_TestRunner::equals(
+	'ru_RU',
+	get_user_meta( 1, 'sfir_admin_locale', true ),
+	'a language choice is stored before uninstall'
 );
 
 define( 'WP_UNINSTALL_PLUGIN', $plugin_file );
@@ -120,6 +154,16 @@ SFIR_TestRunner::check( false === get_option( SFIR_Logger::NOTICE_OPTION, false 
 SFIR_TestRunner::check(
 	false === get_transient( 'sfir_size_' . md5( 'lifecycle-probe' ) ),
 	'uninstall removes the plugin transients'
+);
+SFIR_TestRunner::equals(
+	'',
+	(string) get_user_meta( 1, 'sfir_admin_locale', true ),
+	'uninstall removes the stored language choice'
+);
+SFIR_TestRunner::equals(
+	SFIR_Generator::MODE_AUTO,
+	SFIR_Generator::get_mode(),
+	'uninstall removes the stored generation mode'
 );
 SFIR_TestRunner::check( file_exists( $fixtures['jpeg'] ), 'uninstall keeps the media library files' );
 SFIR_TestRunner::check( is_dir( wp_get_upload_dir()['basedir'] ), 'uninstall keeps the uploads directory' );

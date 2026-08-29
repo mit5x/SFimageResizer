@@ -23,6 +23,8 @@ $user      = getenv( 'SFIR_ADMIN_USER' ) ? getenv( 'SFIR_ADMIN_USER' ) : 'admin'
 $password  = getenv( 'SFIR_ADMIN_PASS' ) ? getenv( 'SFIR_ADMIN_PASS' ) : 'admin123';
 define( 'SFIR_TEST_COOKIES', tempnam( sys_get_temp_dir(), 'sfir-cookies-' ) );
 $page_url  = $base_url . '/wp-admin/options-general.php?page=sf-image-resizer';
+$check_url = $page_url . '&tab=check';
+$docs_url  = $page_url . '&tab=documentation';
 $post_url  = $base_url . '/wp-admin/admin-post.php';
 
 /**
@@ -128,6 +130,11 @@ if ( 200 !== $page['status'] ) {
 
 SFIR_TestRunner::group( '11.2.10 cache statistics' );
 
+// These groups describe what happens when a browser asks for a file that is
+// not there yet, so they pin the mode that leaves generation to that request.
+SFIR_Generator::set_mode( SFIR_Generator::MODE_NEVER );
+SFIR_Cache::flush_runtime_cache();
+
 SFIR_Cache::clear();
 SFIR_Cache::flush_runtime_cache();
 
@@ -211,8 +218,399 @@ SFIR_TestRunner::check(
 );
 
 /* --------------------------------------------------------------------------
+ * The configuration self-check.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( 'self-check level 1: real traffic' );
+
+SFIR_Diagnostics::reset();
+SFIR_Cache::flush_runtime_cache();
+
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), 'no confirmation is stored to begin with' );
+
+$probe_source = SFIR_Diagnostics::ensure_probe_image();
+
+SFIR_TestRunner::check( '' !== $probe_source && is_file( $probe_source ), 'the probe image exists', (string) $probe_source );
+
+$probe_size = getimagesize( $probe_source );
+SFIR_TestRunner::check( is_array( $probe_size ) && 16 === $probe_size[0] && 16 === $probe_size[1], 'the probe image is a 16x16 PNG', wp_json_encode( $probe_size ) );
+
+// A normal front end generation has to set the confirmation on its own.
+$traffic = sfir_fetch( sf_img( sfir_path_to_url( $fixtures['jpeg'] ), 'w=277&f=jpg' ) );
+
+SFIR_TestRunner::equals( 200, $traffic['status'], 'a normal image request succeeds' );
+
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION );
+
+$confirmed = SFIR_Diagnostics::get_confirmed_at();
+
+SFIR_TestRunner::check( $confirmed > 0, 'serving a generated file records the confirmation', (string) $confirmed );
+
+// A second generation on the same day must not rewrite the option.
+sfir_fetch( sf_img( sfir_path_to_url( $fixtures['jpeg'] ), 'w=278&f=jpg' ) );
+
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION );
+
+SFIR_TestRunner::equals( $confirmed, SFIR_Diagnostics::get_confirmed_at(), 'a second generation the same day does not rewrite the option' );
+
+// Only an explicit request, or a day passing, refreshes it.
+update_option( SFIR_Diagnostics::CONFIRMED_OPTION, $confirmed - DAY_IN_SECONDS - 10, false );
+sfir_fetch( sf_img( sfir_path_to_url( $fixtures['jpeg'] ), 'w=279&f=jpg' ) );
+
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION );
+
+SFIR_TestRunner::check( SFIR_Diagnostics::get_confirmed_at() > $confirmed - DAY_IN_SECONDS - 10, 'a day later the confirmation is refreshed' );
+
+SFIR_TestRunner::group( 'self-check level 1: what the screen shows' );
+
+$page = sfir_admin_request( $check_url );
+
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Configuration check' ), 'the page shows the configuration check' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Works on this server. Confirmed on' ), 'the page reports that the request path works' );
+SFIR_TestRunner::check(
+	false !== strpos( $page['body'], 'is-working" data-check="request"' ),
+	'the request row is marked as working'
+);
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'is-unknown" data-check="render"' ), 'the render row is still unanswered' );
+SFIR_TestRunner::check(
+	empty( sfir_admin_settings( $page['body'] )['probeUrl'] ),
+	'no request probe is handed out once that one is confirmed'
+);
+
+SFIR_TestRunner::group( 'self-check level 2: the browser probe' );
+
+SFIR_Diagnostics::reset();
+
+$page = sfir_admin_request( $check_url );
+
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Not confirmed on this server.' ), 'without a confirmation the page says so plainly' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Neither check has answered yet' ), 'the wording avoids claiming a fault' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'location ^~' ), 'the nginx snippet is offered' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'class="sfir-hints"' ), 'the nginx snippet sits in a collapsible block' );
+
+$probe_urls = array();
+
+for ( $i = 0; $i < 2; $i++ ) {
+	$settings = sfir_admin_settings( sfir_admin_request( $check_url )['body'] );
+
+	if ( ! empty( $settings['probeUrl'] ) ) {
+		$probe_urls[] = $settings['probeUrl'];
+	}
+}
+
+SFIR_TestRunner::equals( 2, count( $probe_urls ), 'the page hands a probe URL to the browser' );
+SFIR_TestRunner::check(
+	2 === count( $probe_urls ) && $probe_urls[0] !== $probe_urls[1],
+	'each render asks for a different size, so the cache always misses',
+	wp_json_encode( $probe_urls )
+);
+
+if ( ! empty( $probe_urls ) ) {
+	$probe_url = $probe_urls[0];
+
+	SFIR_TestRunner::check( false !== strpos( $probe_url, '/cache_images/' ), 'the probe URL is a cache URL', $probe_url );
+	SFIR_TestRunner::check( ! file_exists( sfir_url_to_path( $probe_url ) ), 'the probe file does not exist yet' );
+
+	// This is what the administrator's browser does.
+	$fetched = sfir_http( sfir_test_url( $probe_url ) );
+
+	SFIR_TestRunner::equals( 200, $fetched['status'], 'the browser probe URL answers 200' );
+	SFIR_TestRunner::check(
+		0 === strpos( (string) ( isset( $fetched['headers']['content-type'] ) ? $fetched['headers']['content-type'] : '' ), 'image/' ),
+		'the browser probe URL answers with an image'
+	);
+	SFIR_TestRunner::check( is_array( sfir_image_info( $fetched['body'] ) ), 'the probe answer is a valid image' );
+}
+
+SFIR_TestRunner::group( 'self-check: the confirmation endpoint' );
+
+SFIR_Diagnostics::reset();
+
+$ajax_url = $base_url . '/wp-admin/admin-ajax.php';
+
+$no_nonce = sfir_admin_request(
+	$ajax_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => 'action=' . SFIR_Diagnostics::AJAX_ACTION,
+	)
+);
+
+SFIR_TestRunner::check(
+	200 !== $no_nonce['status'] || '-1' === trim( $no_nonce['body'] ),
+	'a confirmation without a nonce is refused',
+	$no_nonce['status'] . ' ' . substr( $no_nonce['body'], 0, 40 )
+);
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION );
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), 'the refused request stored nothing' );
+
+// A logged in user without manage_options must be refused as well.
+$editor_id = wp_insert_user(
+	array(
+		'user_login' => 'sfir-subscriber',
+		'user_pass'  => 'sfir-subscriber-pass',
+		'role'       => 'subscriber',
+	)
+);
+
+if ( ! is_wp_error( $editor_id ) || 'existing_user_login' === $editor_id->get_error_code() ) {
+	$subscriber_cookies = tempnam( sys_get_temp_dir(), 'sfir-sub-' );
+
+	sfir_http(
+		$base_url . '/wp-login.php',
+		array(
+			CURLOPT_POST       => true,
+			CURLOPT_POSTFIELDS => http_build_query(
+				array(
+					'log'        => 'sfir-subscriber',
+					'pwd'        => 'sfir-subscriber-pass',
+					'wp-submit'  => 'Log In',
+					'testcookie' => '1',
+				)
+			),
+			CURLOPT_COOKIEJAR  => $subscriber_cookies,
+			CURLOPT_COOKIEFILE => $subscriber_cookies,
+			CURLOPT_COOKIE     => 'wordpress_test_cookie=WP Cookie check',
+		)
+	);
+
+	$as_subscriber = sfir_http(
+		$ajax_url,
+		array(
+			CURLOPT_POST       => true,
+			CURLOPT_POSTFIELDS => 'action=' . SFIR_Diagnostics::AJAX_ACTION,
+			CURLOPT_COOKIEJAR  => $subscriber_cookies,
+			CURLOPT_COOKIEFILE => $subscriber_cookies,
+			CURLOPT_COOKIE     => 'wordpress_test_cookie=WP Cookie check',
+		)
+	);
+
+	SFIR_TestRunner::check(
+		200 !== $as_subscriber['status'],
+		'a subscriber cannot confirm the check',
+		$as_subscriber['status'] . ' ' . substr( $as_subscriber['body'], 0, 60 )
+	);
+	sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION );
+	SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), 'the subscriber request stored nothing' );
+
+	unlink( $subscriber_cookies );
+}
+
+$settings = sfir_admin_settings( sfir_admin_request( $check_url )['body'] );
+$nonce    = isset( $settings['nonce'] ) ? $settings['nonce'] : '';
+
+SFIR_TestRunner::check( '' !== $nonce, 'the page hands a nonce to the browser check' );
+SFIR_TestRunner::check( ! empty( $settings['ajaxAction'] ), 'the page hands the action name to the browser check' );
+
+$confirm = sfir_admin_request(
+	$ajax_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => SFIR_Diagnostics::AJAX_ACTION,
+				'_wpnonce' => $nonce,
+			)
+		),
+	)
+);
+
+SFIR_TestRunner::equals( 200, $confirm['status'], 'a signed confirmation is accepted' );
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION );
+SFIR_TestRunner::check( SFIR_Diagnostics::get_confirmed_at() > 0, 'the signed confirmation is stored' );
+SFIR_TestRunner::equals(
+	0,
+	count( (array) glob( SFIR_Diagnostics::get_probe_cache_dir() . '/*.webp' ) ) + count( (array) glob( SFIR_Diagnostics::get_probe_cache_dir() . '/*.jpg' ) ),
+	'the probe cache files were cleaned up'
+);
+
+/* --------------------------------------------------------------------------
+ * The second half of the check: producing a copy while rendering.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.4.0 the render check' );
+
+SFIR_Diagnostics::reset();
+SFIR_Diagnostics::cleanup_probe_files();
+SFIR_Cache::flush_runtime_cache();
+
+$render_probe = SFIR_Diagnostics::get_render_probe_url();
+$render_path  = sfir_url_to_path( $render_probe );
+clearstatcache();
+
+SFIR_TestRunner::check( '' !== $render_probe, 'the render check builds a probe URL', $render_probe );
+SFIR_TestRunner::check( false !== strpos( $render_probe, '/cache_images/' ), 'it is a cache URL', $render_probe );
+SFIR_TestRunner::check( is_file( $render_path ), 'the file really was produced, unlike the other probe', $render_path );
+
+// The browser must get it from the web server, with no help from the plugin.
+$render_fetch = sfir_http( sfir_test_url( $render_probe ) );
+
+SFIR_TestRunner::equals( 200, $render_fetch['status'], 'the browser gets the produced copy' );
+SFIR_TestRunner::check(
+	0 === strpos( (string) ( isset( $render_fetch['headers']['content-type'] ) ? $render_fetch['headers']['content-type'] : '' ), 'image/' ),
+	'it answers with an image'
+);
+SFIR_TestRunner::check(
+	! isset( $render_fetch['headers']['x-sfir'] ),
+	'the web server answered it, not the plugin — which is what this check proves'
+);
+
+// Two renders must not reuse one file, or a stale copy could pass the check.
+$first  = SFIR_Diagnostics::get_render_probe_url();
+$second = SFIR_Diagnostics::get_render_probe_url();
+
+SFIR_TestRunner::check( $first !== $second, 'each render asks for a different size', $first . ' vs ' . $second );
+SFIR_TestRunner::check(
+	SFIR_Diagnostics::get_render_probe_url() !== SFIR_Diagnostics::get_probe_url(),
+	'the two probes never ask for the same file, or one would answer for the other'
+);
+
+// The two checks are stored, reported and reset independently.
+SFIR_Diagnostics::reset();
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION, SFIR_Diagnostics::RENDER_OPTION );
+
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_render_confirmed_at(), 'the render answer starts unknown' );
+
+SFIR_Diagnostics::confirm_render();
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION, SFIR_Diagnostics::RENDER_OPTION );
+
+SFIR_TestRunner::check( SFIR_Diagnostics::get_render_confirmed_at() > 0, 'the render answer can be recorded' );
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), 'recording it leaves the request answer alone' );
+
+// This is the situation on a server without the nginx rule: one works, the
+// other does not, and the screen has to say so without crying fault.
+$split = sfir_admin_request( $check_url );
+
+SFIR_TestRunner::check( false !== strpos( $split['body'], 'is-working" data-check="render"' ), 'the render row is marked as working' );
+SFIR_TestRunner::check( false !== strpos( $split['body'], 'is-unknown" data-check="request"' ), 'the request row stays unanswered' );
+SFIR_TestRunner::check(
+	false !== strpos( $split['body'], 'That is not a fault' ),
+	'the verdict explains that this server is simply of the other kind'
+);
+SFIR_TestRunner::check(
+	empty( sfir_admin_settings( $split['body'] )['renderUrl'] ),
+	'no render probe is handed out once that one is confirmed'
+);
+SFIR_TestRunner::check(
+	! empty( sfir_admin_settings( $split['body'] )['probeUrl'] ),
+	'the unanswered check is still being retried'
+);
+
+// The confirmation endpoint keeps the two apart.
+SFIR_Diagnostics::reset();
+
+$check_page  = sfir_admin_request( $check_url );
+$ajax_nonce  = sfir_admin_settings( $check_page['body'] )['nonce'];
+$ajax_target = $base_url . '/wp-admin/admin-ajax.php';
+
+sfir_admin_request(
+	$ajax_target,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => SFIR_Diagnostics::AJAX_ACTION,
+				'_wpnonce' => $ajax_nonce,
+				'which'    => SFIR_Diagnostics::CHECK_RENDER,
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION, SFIR_Diagnostics::RENDER_OPTION );
+
+SFIR_TestRunner::check( SFIR_Diagnostics::get_render_confirmed_at() > 0, 'reporting "render" records the render answer' );
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), 'and only that one' );
+
+$unknown_check = sfir_admin_request(
+	$ajax_target,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => SFIR_Diagnostics::AJAX_ACTION,
+				'_wpnonce' => $ajax_nonce,
+				'which'    => 'something-else',
+			)
+		),
+	)
+);
+
+SFIR_TestRunner::equals( 400, $unknown_check['status'], 'an unknown check name is refused' );
+
+// "Check again" has to clear both, or the screen would keep half an answer.
+SFIR_Diagnostics::confirm( true );
+SFIR_Diagnostics::confirm_render();
+
+$reset_page  = sfir_admin_request( $check_url );
+$reset_nonce = sfir_form_nonce( $reset_page['body'], 'sfir_recheck' );
+
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => 'sfir_recheck',
+				'_wpnonce' => $reset_nonce,
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION, SFIR_Diagnostics::RENDER_OPTION );
+
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), 'checking again clears the request answer' );
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_render_confirmed_at(), 'checking again clears the render answer too' );
+
+// Put a confirmation back, which is the state the next group starts from.
+SFIR_Diagnostics::confirm( true );
+
+SFIR_TestRunner::group( 'self-check: reset' );
+
+$page  = sfir_admin_request( $check_url );
+$nonce = sfir_form_nonce( $page['body'], 'sfir_recheck' );
+
+SFIR_TestRunner::check( '' !== $nonce, 'the re-check form carries a nonce' );
+
+$without_nonce = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => 'action=sfir_recheck',
+	)
+);
+
+SFIR_TestRunner::equals( 403, $without_nonce['status'], 'a re-check POST without a nonce is refused with 403' );
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION );
+SFIR_TestRunner::check( SFIR_Diagnostics::get_confirmed_at() > 0, 'the nonce-less request did not reset anything' );
+
+$with_nonce = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => 'sfir_recheck',
+				'_wpnonce' => $nonce,
+			)
+		),
+	)
+);
+
+SFIR_TestRunner::equals( 302, $with_nonce['status'], 'a signed re-check POST redirects back to the page' );
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION );
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), '"check again" resets the confirmation' );
+
+SFIR_Cache::flush_runtime_cache();
+
+/* --------------------------------------------------------------------------
  * The log viewer.
  * ----------------------------------------------------------------------- */
+
+// Back to the shipped default for the rest of the screen.
+delete_option( SFIR_Generator::MODE_OPTION );
+SFIR_Cache::flush_runtime_cache();
 
 SFIR_TestRunner::group( '11.2.10 log viewer' );
 
@@ -225,7 +623,7 @@ for ( $i = 1; $i <= 60; $i++ ) {
 
 file_put_contents( $log_file, $lines );
 
-$page = sfir_admin_request( $page_url );
+$page = sfir_admin_request( $check_url );
 
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'marker-1 ' ), 'the log viewer shows the first line' );
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'marker-50 ' ), 'the log viewer shows the 50th line' );
@@ -235,7 +633,7 @@ SFIR_TestRunner::check( false !== strpos( $page['body'], '<textarea class="sfir-
 // The log content must be escaped before it reaches the page.
 file_put_contents( $log_file, "[2026-01-01 00:00:00] [E01] <script>alert(1)</script> | source=x | params=y\n" );
 
-$page = sfir_admin_request( $page_url );
+$page = sfir_admin_request( $check_url );
 
 SFIR_TestRunner::check( false === strpos( $page['body'], '<script>alert(1)</script>' ), 'log content is escaped' );
 SFIR_TestRunner::check( false !== strpos( $page['body'], '&lt;script&gt;' ), 'log content is escaped as entities' );
@@ -275,7 +673,7 @@ clearstatcache();
 SFIR_TestRunner::equals( 302, $with_nonce['status'], 'a signed clear-log POST redirects back to the page' );
 SFIR_TestRunner::equals( 0, filesize( $log_file ), 'the signed request emptied the log' );
 
-$after = sfir_admin_request( $page_url );
+$after = sfir_admin_request( $check_url );
 
 SFIR_TestRunner::check(
 	false !== strpos( $after['body'], 'The error log has been cleared.' ),
@@ -288,9 +686,9 @@ SFIR_TestRunner::check(
 
 SFIR_TestRunner::group( '11.2.10 documentation and assets' );
 
-$page = sfir_admin_request( $page_url );
+$page = sfir_admin_request( $docs_url );
 
-foreach ( array( 'sf_img(', 'sf_img_width(', 'sf_img_height(', 'sf_img_tag(', 'E07', 'crop', 'WebP fallback' ) as $needle ) {
+foreach ( array( 'sf_img(', 'sf_img_width(', 'sf_img_height(', 'sf_img_tag(', 'E07', 'crop', 'WebP fallback', 'How the URL is built', '{hash}' ) as $needle ) {
 	SFIR_TestRunner::check( false !== strpos( $page['body'], $needle ), 'the documentation mentions ' . $needle );
 }
 
@@ -309,6 +707,292 @@ foreach ( array( '/wp-content/plugins/sf-image-resizer/admin/assets/css/admin.cs
 	SFIR_TestRunner::check( false !== strpos( $page['body'], $asset ), 'the local asset is enqueued: ' . basename( $asset ) );
 	SFIR_TestRunner::equals( 200, sfir_http( $base_url . $asset )['status'], 'the local asset is served: ' . basename( $asset ) );
 }
+
+/* --------------------------------------------------------------------------
+ * Tabs.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.2.0 tabs' );
+
+$page = sfir_admin_request( $page_url );
+
+foreach ( array( 'Cache', 'Check and log', 'Documentation' ) as $label ) {
+	SFIR_TestRunner::check(
+		(bool) preg_match( '#<a href="[^"]*"\s*class="nav-tab[^"]*">\s*' . preg_quote( $label, '#' ) . '#', $page['body'] ),
+		'the screen offers the "' . $label . '" tab'
+	);
+}
+
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Cached files' ), 'the cache tab is the default' );
+SFIR_TestRunner::check( false === strpos( $page['body'], 'Configuration check' ), 'the cache tab does not carry the check' );
+SFIR_TestRunner::check( false === strpos( $page['body'], 'Error codes' ), 'the cache tab does not carry the documentation' );
+
+$check_page = sfir_admin_request( $check_url );
+SFIR_TestRunner::check( false !== strpos( $check_page['body'], 'Configuration check' ), 'the check tab carries the check' );
+SFIR_TestRunner::check( false !== strpos( $check_page['body'], 'Error log' ), 'the check tab carries the log' );
+SFIR_TestRunner::check( false === strpos( $check_page['body'], 'Cached files' ), 'the check tab does not carry the statistics' );
+
+$docs_page = sfir_admin_request( $docs_url );
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'Error codes' ), 'the documentation tab carries the documentation' );
+SFIR_TestRunner::check( false === strpos( $docs_page['body'], 'Cached files' ), 'the documentation tab does not carry the statistics' );
+
+$unknown = sfir_admin_request( $page_url . '&tab=nonsense' );
+SFIR_TestRunner::check( false !== strpos( $unknown['body'], 'Cached files' ), 'an unknown tab falls back to the cache tab' );
+
+/* --------------------------------------------------------------------------
+ * The generation mode.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.3.0 generation mode' );
+
+delete_option( SFIR_Generator::MODE_OPTION );
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
+
+$mode_page = sfir_admin_request( $check_url );
+
+SFIR_TestRunner::check( false !== strpos( $mode_page['body'], 'When copies are produced' ), 'the check tab carries the generation setting' );
+SFIR_TestRunner::check( false !== strpos( $mode_page['body'], 'name="sfir_mode"' ), 'the setting is a set of radio buttons' );
+SFIR_TestRunner::check(
+	(bool) preg_match( '#value="auto"[^>]*checked#', $mode_page['body'] ),
+	'the automatic mode is selected on a fresh installation'
+);
+$cache_tab = sfir_admin_request( $page_url );
+SFIR_TestRunner::check( false === strpos( $cache_tab['body'], 'When copies are produced' ), 'the setting lives on the check tab only' );
+
+$mode_nonce = sfir_form_nonce( $mode_page['body'], 'sfir_generate_mode' );
+
+SFIR_TestRunner::check( '' !== $mode_nonce, 'the setting form carries a nonce' );
+
+// A POST without a nonce changes nothing.
+$mode_unsigned = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'    => 'sfir_generate_mode',
+				'sfir_mode' => 'always',
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
+
+SFIR_TestRunner::equals( 403, $mode_unsigned['status'], 'an unsigned POST is refused with 403' );
+SFIR_TestRunner::equals( SFIR_Generator::MODE_AUTO, SFIR_Generator::get_mode(), 'the unsigned POST did not change the mode' );
+
+// A signed POST does.
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'    => 'sfir_generate_mode',
+				'_wpnonce'  => $mode_nonce,
+				'sfir_mode' => 'always',
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
+
+SFIR_TestRunner::equals( SFIR_Generator::MODE_ALWAYS, SFIR_Generator::get_mode(), 'a signed POST stores the chosen mode' );
+
+$saved_page = sfir_admin_request( $check_url );
+
+SFIR_TestRunner::check( false !== strpos( $saved_page['body'], 'The generation mode has been saved.' ), 'a notice confirms the change' );
+SFIR_TestRunner::check(
+	(bool) preg_match( '#value="always"[^>]*checked#', $saved_page['body'] ),
+	'the stored mode is the one selected on the screen'
+);
+SFIR_TestRunner::check(
+	false !== strpos( $saved_page['body'], 'copies are produced while the page is rendered' ),
+	'the screen states what is happening right now'
+);
+
+// A value that is not one of the three modes is refused.
+$refuse_nonce = sfir_form_nonce( $saved_page['body'], 'sfir_generate_mode' );
+
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'    => 'sfir_generate_mode',
+				'_wpnonce'  => $refuse_nonce,
+				'sfir_mode' => 'whenever',
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
+
+SFIR_TestRunner::equals( SFIR_Generator::MODE_AUTO, SFIR_Generator::get_mode(), 'an unknown mode falls back to automatic' );
+
+delete_option( SFIR_Generator::MODE_OPTION );
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
+
+/* --------------------------------------------------------------------------
+ * The language picker.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.2.0 language' );
+
+delete_user_meta( 1, SFIR_I18n::USER_META );
+
+$page = sfir_admin_request( $page_url );
+
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'id="sfir-locale"' ), 'the screen carries a language picker' );
+
+foreach ( array( 'ru_RU', 'es_ES', 'de_DE', 'fr_FR', 'it_IT', 'pt_BR', 'zh_CN' ) as $locale ) {
+	SFIR_TestRunner::check(
+		false !== strpos( $page['body'], 'value="' . $locale . '"' ),
+		'the picker offers ' . $locale
+	);
+	SFIR_TestRunner::check(
+		is_readable( SFIR_PLUGIN_DIR . 'languages/sf-image-resizer-' . $locale . '.mo' ),
+		'a compiled translation ships for ' . $locale
+	);
+}
+
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Cached files' ), 'the untranslated screen is English by default' );
+
+$no_nonce = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => 'action=sfir_language&sfir_locale=ru_RU',
+	)
+);
+
+SFIR_TestRunner::equals( 403, $no_nonce['status'], 'a language change without a nonce is refused' );
+
+$nonce = sfir_form_nonce( $page['body'], 'sfir_language' );
+
+SFIR_TestRunner::check( '' !== $nonce, 'the language form carries a nonce' );
+
+$switched = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'      => 'sfir_language',
+				'_wpnonce'    => $nonce,
+				'sfir_locale' => 'ru_RU',
+				'sfir_tab'    => 'check',
+			)
+		),
+	)
+);
+
+SFIR_TestRunner::equals( 302, $switched['status'], 'a signed language change redirects back' );
+SFIR_TestRunner::check(
+	false !== strpos( (string) ( isset( $switched['headers']['location'] ) ? $switched['headers']['location'] : '' ), 'tab=check' ),
+	'the redirect returns to the tab the change was made on'
+);
+
+sfir_forget_user_meta( 1 );
+SFIR_TestRunner::equals( 'ru_RU', get_user_meta( 1, SFIR_I18n::USER_META, true ), 'the choice is remembered for the user' );
+
+$russian = sfir_admin_request( $page_url );
+
+SFIR_TestRunner::check( false !== strpos( $russian['body'], 'Файлов в кэше' ), 'the screen is now in Russian' );
+SFIR_TestRunner::check( false !== strpos( $russian['body'], 'Очистить кэш изображений' ), 'the buttons are translated too' );
+SFIR_TestRunner::check( false === strpos( $russian['body'], 'Cached files' ), 'the English wording is gone' );
+
+$russian_docs = sfir_admin_request( $docs_url );
+SFIR_TestRunner::check( false !== strpos( $russian_docs['body'], 'Коды ошибок' ), 'the documentation is translated as well' );
+
+// Another locale, to prove the picker is not hard wired to one language.
+$nonce = sfir_form_nonce( $russian['body'], 'sfir_language' );
+
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'      => 'sfir_language',
+				'_wpnonce'    => $nonce,
+				'sfir_locale' => 'de_DE',
+			)
+		),
+	)
+);
+
+$german = sfir_admin_request( $page_url );
+SFIR_TestRunner::check( false !== strpos( $german['body'], 'Dateien im Cache' ), 'switching to German works' );
+
+// Back to the site language.
+$nonce = sfir_form_nonce( $german['body'], 'sfir_language' );
+
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'      => 'sfir_language',
+				'_wpnonce'    => $nonce,
+				'sfir_locale' => '',
+			)
+		),
+	)
+);
+
+sfir_forget_user_meta( 1 );
+SFIR_TestRunner::equals( '', (string) get_user_meta( 1, SFIR_I18n::USER_META, true ), 'choosing the site language clears the stored choice' );
+
+$back = sfir_admin_request( $page_url );
+SFIR_TestRunner::check( false !== strpos( $back['body'], 'Cached files' ), 'the screen follows the site language again' );
+
+/* --------------------------------------------------------------------------
+ * The Markdown reference and the plugins list link.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.2.0 markdown reference' );
+
+$docs_page = sfir_admin_request( $docs_url );
+
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'id="sfir-markdown"' ), 'the documentation tab carries the Markdown field' );
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'id="sfir-copy-markdown"' ), 'it has a copy button' );
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'download="sf-image-resizer.md"' ), 'it has a download link' );
+SFIR_TestRunner::check( false !== strpos( $docs_page['body'], 'sf_img_srcset' ), 'the reference mentions sf_img_srcset' );
+
+$markdown_url = $base_url . '/wp-content/plugins/sf-image-resizer/docs/sf-image-resizer.md';
+$markdown     = sfir_http( $markdown_url );
+
+SFIR_TestRunner::equals( 200, $markdown['status'], 'the .md file is downloadable' );
+SFIR_TestRunner::check( false !== strpos( $markdown['body'], 'sf_img_srcset' ), 'the downloaded file is the reference' );
+// The admin class is only loaded on admin requests, so pull it in explicitly.
+if ( ! class_exists( 'SFIR_Admin' ) ) {
+	require_once WP_PLUGIN_DIR . '/sf-image-resizer/admin/class-sfir-admin.php';
+}
+
+SFIR_TestRunner::check(
+	strlen( $markdown['body'] ) > 3000 && $markdown['body'] === SFIR_Admin::get_markdown(),
+	'the download matches what the page shows'
+);
+
+SFIR_TestRunner::group( '1.2.0 plugins list' );
+
+$plugins_page = sfir_admin_request( $base_url . '/wp-admin/plugins.php' );
+
+SFIR_TestRunner::equals( 200, $plugins_page['status'], 'the plugins screen loads' );
+SFIR_TestRunner::check(
+	false !== strpos( $plugins_page['body'], 'options-general.php?page=sf-image-resizer' ),
+	'the plugin row links to the settings screen'
+);
+SFIR_TestRunner::check(
+	false !== strpos( $plugins_page['body'], 'SF Image resizer' ),
+	'the plugin is listed under its new display name'
+);
 
 /* --------------------------------------------------------------------------
  * Directory protection.

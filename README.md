@@ -12,12 +12,23 @@ plain static URL from then on.
      alt="" loading="lazy" />
 ```
 
+Or hand the browser every size at once and let it pick:
+
+```php
+<img src="<?php echo esc_url( $image['url'] ); ?>"
+     srcset="<?php echo esc_attr( sf_img_srcset( $image ) ); ?>"
+     sizes="auto" alt="" loading="lazy" decoding="async" />
+```
+
 * **Download:** the installable zip is attached to each
   [GitHub Release](../../releases/latest); it is deliberately not committed to
   the repository.
 * **Plugin:** `sf-image-resizer/` — this is the only directory that ships.
 * **User documentation:** `sf-image-resizer/readme.txt`, and the built-in
-  documentation on *Settings → SFimageResizer*.
+  documentation on *Settings → SF Image resizer → Documentation*. That tab also
+  offers `sf-image-resizer/docs/sf-image-resizer.md`, a reference written for a
+  language model: paste it into Claude or ChatGPT together with your template
+  and the assistant has everything it needs to write correct markup.
 * **Tests:** `tests/` — see `TEST-REPORT.md`.
 * **Release process:** `BUILD.md`.
 
@@ -31,7 +42,8 @@ plain static URL from then on.
 │   ├── readme.txt
 │   ├── includes/
 │   ├── admin/
-│   └── languages/
+│   ├── docs/                the Markdown reference the screen hands out
+│   └── languages/           .pot, and .po/.mo for seven locales
 ├── tests/
 │   ├── bootstrap.php        stubs for the WordPress-free unit tests
 │   ├── unit/                PHPUnit tests for the pure logic
@@ -59,8 +71,18 @@ plain static URL from then on.
 2. Activate it. Activation creates
    `wp-content/uploads/SFimageResizer/{cache_images,logs}/`, a signing secret
    and the rewrite rule for the generation endpoint.
-3. Call `sf_img()`, `sf_img_width()`, `sf_img_height()` or `sf_img_tag()` from
-   your templates.
+3. Call `sf_img()`, `sf_img_srcset()`, `sf_img_width()`, `sf_img_height()` or
+   `sf_img_tag()` from your templates.
+
+The settings screen is on *Settings → SF Image resizer*, reachable from the
+**Settings** link in the plugin row as well. It has three tabs — Cache, Check
+and log, Documentation. *Check and log* also decides **when copies are
+produced**: while the page renders, or on the browser's first request for the
+file. The default works out which of the two your server supports. The screen
+follows the site language, with a picker for
+English, Russian, Spanish, German, French, Italian, Brazilian Portuguese and
+Simplified Chinese. The choice is remembered per administrator and affects this
+screen only.
 
 ## Running the tests
 
@@ -78,8 +100,10 @@ integration suite and Plugin Check.
 
 ## Releasing
 
-Bump the version, push, then push a `vX.Y.Z` tag; the release workflow builds
-the archive and publishes it. See `BUILD.md`.
+Bump the version and push, then either run **Actions → Release → Run workflow**
+(pick the branch, type the version — the tag is created for you) or push a
+`vX.Y.Z` tag by hand. Either way the workflow builds the archive, verifies it
+and publishes the GitHub Release. See `BUILD.md`.
 
 ## License
 
