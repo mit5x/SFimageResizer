@@ -130,6 +130,11 @@ if ( 200 !== $page['status'] ) {
 
 SFIR_TestRunner::group( '11.2.10 cache statistics' );
 
+// These groups describe what happens when a browser asks for a file that is
+// not there yet, so they pin the mode that leaves generation to that request.
+SFIR_Generator::set_mode( SFIR_Generator::MODE_NEVER );
+SFIR_Cache::flush_runtime_cache();
+
 SFIR_Cache::clear();
 SFIR_Cache::flush_runtime_cache();
 
@@ -460,6 +465,10 @@ SFIR_Cache::flush_runtime_cache();
  * The log viewer.
  * ----------------------------------------------------------------------- */
 
+// Back to the shipped default for the rest of the screen.
+delete_option( SFIR_Generator::MODE_OPTION );
+SFIR_Cache::flush_runtime_cache();
+
 SFIR_TestRunner::group( '11.2.10 log viewer' );
 
 $log_file = SFIR_Logger::get_log_file();
@@ -586,6 +595,104 @@ SFIR_TestRunner::check( false === strpos( $docs_page['body'], 'Cached files' ), 
 
 $unknown = sfir_admin_request( $page_url . '&tab=nonsense' );
 SFIR_TestRunner::check( false !== strpos( $unknown['body'], 'Cached files' ), 'an unknown tab falls back to the cache tab' );
+
+/* --------------------------------------------------------------------------
+ * The generation mode.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.3.0 generation mode' );
+
+delete_option( SFIR_Generator::MODE_OPTION );
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
+
+$mode_page = sfir_admin_request( $check_url );
+
+SFIR_TestRunner::check( false !== strpos( $mode_page['body'], 'When copies are produced' ), 'the check tab carries the generation setting' );
+SFIR_TestRunner::check( false !== strpos( $mode_page['body'], 'name="sfir_mode"' ), 'the setting is a set of radio buttons' );
+SFIR_TestRunner::check(
+	(bool) preg_match( '#value="auto"[^>]*checked#', $mode_page['body'] ),
+	'the automatic mode is selected on a fresh installation'
+);
+$cache_tab = sfir_admin_request( $page_url );
+SFIR_TestRunner::check( false === strpos( $cache_tab['body'], 'When copies are produced' ), 'the setting lives on the check tab only' );
+
+$mode_nonce = sfir_form_nonce( $mode_page['body'], 'sfir_generate_mode' );
+
+SFIR_TestRunner::check( '' !== $mode_nonce, 'the setting form carries a nonce' );
+
+// A POST without a nonce changes nothing.
+$mode_unsigned = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'    => 'sfir_generate_mode',
+				'sfir_mode' => 'always',
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
+
+SFIR_TestRunner::equals( 403, $mode_unsigned['status'], 'an unsigned POST is refused with 403' );
+SFIR_TestRunner::equals( SFIR_Generator::MODE_AUTO, SFIR_Generator::get_mode(), 'the unsigned POST did not change the mode' );
+
+// A signed POST does.
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'    => 'sfir_generate_mode',
+				'_wpnonce'  => $mode_nonce,
+				'sfir_mode' => 'always',
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
+
+SFIR_TestRunner::equals( SFIR_Generator::MODE_ALWAYS, SFIR_Generator::get_mode(), 'a signed POST stores the chosen mode' );
+
+$saved_page = sfir_admin_request( $check_url );
+
+SFIR_TestRunner::check( false !== strpos( $saved_page['body'], 'The generation mode has been saved.' ), 'a notice confirms the change' );
+SFIR_TestRunner::check(
+	(bool) preg_match( '#value="always"[^>]*checked#', $saved_page['body'] ),
+	'the stored mode is the one selected on the screen'
+);
+SFIR_TestRunner::check(
+	false !== strpos( $saved_page['body'], 'copies are produced while the page is rendered' ),
+	'the screen states what is happening right now'
+);
+
+// A value that is not one of the three modes is refused.
+$refuse_nonce = sfir_form_nonce( $saved_page['body'], 'sfir_generate_mode' );
+
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'    => 'sfir_generate_mode',
+				'_wpnonce'  => $refuse_nonce,
+				'sfir_mode' => 'whenever',
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
+
+SFIR_TestRunner::equals( SFIR_Generator::MODE_AUTO, SFIR_Generator::get_mode(), 'an unknown mode falls back to automatic' );
+
+delete_option( SFIR_Generator::MODE_OPTION );
+sfir_forget_options( SFIR_Generator::MODE_OPTION );
 
 /* --------------------------------------------------------------------------
  * The language picker.

@@ -3,7 +3,7 @@
  * Plugin Name:       SF Image resizer
  * Plugin URI:        https://web-format.net
  * Description:       On-demand image resizing, cropping and WebP/JPG conversion for theme developers, straight from PHP templates, with automatic disk caching.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Requires at least: 7.0
  * Requires PHP:      7.4
  * Author:            saytformat
@@ -21,7 +21,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Plugin version.
  */
-define( 'SFIR_VERSION', '1.2.0' );
+define( 'SFIR_VERSION', '1.3.0' );
 
 /**
  * Absolute path to the main plugin file.
@@ -52,6 +52,7 @@ require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-placeholder.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-resizer.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-endpoint.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-diagnostics.php';
+require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-generator.php';
 require_once SFIR_PLUGIN_DIR . 'includes/functions.php';
 
 if ( is_admin() ) {

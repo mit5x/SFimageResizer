@@ -76,7 +76,10 @@ Or hand the browser every size at once and let it pick:
 
 The settings screen is on *Settings → SF Image resizer*, reachable from the
 **Settings** link in the plugin row as well. It has three tabs — Cache, Check
-and log, Documentation — and follows the site language, with a picker for
+and log, Documentation. *Check and log* also decides **when copies are
+produced**: while the page renders, or on the browser's first request for the
+file. The default works out which of the two your server supports. The screen
+follows the site language, with a picker for
 English, Russian, Spanish, German, French, Italian, Brazilian Portuguese and
 Simplified Chinese. The choice is remembered per administrator and affects this
 screen only.

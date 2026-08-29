@@ -95,3 +95,18 @@
 .sfir-wrap .sfir-hidden {
 	display: none;
 }
+
+.sfir-modes {
+	margin: 12px 0 4px;
+}
+
+.sfir-modes label {
+	display: block;
+	font-weight: 600;
+	margin-top: 12px;
+}
+
+.sfir-modes .description {
+	margin: 2px 0 0 24px;
+	max-width: 46em;
+}

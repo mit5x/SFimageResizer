@@ -76,6 +76,12 @@ class SFIR_Cache {
 		self::$size_memo    = array();
 		self::$prepare_memo = array();
 		self::$prepared     = null;
+
+		// The rendering budget is per request too, so a simulated new render
+		// starts with a full one.
+		if ( class_exists( 'SFIR_Generator' ) ) {
+			SFIR_Generator::reset_budget();
+		}
 	}
 
 	/**
@@ -322,6 +328,37 @@ class SFIR_Cache {
 		$parts[] = rawurlencode( $filename );
 
 		return $root . '/' . implode( '/', $parts );
+	}
+
+	/**
+	 * Tells whether a path stays inside the cache directory.
+	 *
+	 * @param string $path Absolute path, the file itself need not exist yet.
+	 * @return bool
+	 */
+	public static function is_inside_cache( $path ) {
+		$root = self::get_cache_dir();
+
+		if ( '' === $root || '' === $path ) {
+			return false;
+		}
+
+		$root_real = realpath( $root );
+
+		if ( false === $root_real ) {
+			return false;
+		}
+
+		$root_real = str_replace( '\\', '/', $root_real );
+
+		$dir_real = realpath( dirname( $path ) );
+
+		if ( false !== $dir_real ) {
+			return SFIR_Core::is_path_within( str_replace( '\\', '/', $dir_real ) . '/' . basename( $path ), $root_real );
+		}
+
+		// The sub-directory does not exist yet: check the normalised path instead.
+		return SFIR_Core::is_path_within( str_replace( '\\', '/', $path ), $root_real );
 	}
 
 	/**

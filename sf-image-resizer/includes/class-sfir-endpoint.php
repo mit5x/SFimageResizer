@@ -174,7 +174,7 @@ class SFIR_Endpoint {
 
 		$cache_path = SFIR_Cache::get_file_path( implode( '/', $segments ), $filename );
 
-		if ( '' === $cache_path || ! self::is_inside_cache( $cache_path ) ) {
+		if ( '' === $cache_path || ! SFIR_Cache::is_inside_cache( $cache_path ) ) {
 			SFIR_Logger::log( 'E06', 'Refusing to write outside the cache directory.', $cache_path, $params );
 			self::serve_placeholder( 'E06', $params['w'], $params['h'] );
 			return;
@@ -351,7 +351,10 @@ class SFIR_Endpoint {
 	}
 
 	/**
-	 * Generates the cache file under an exclusive lock and serves the result.
+	 * Produces the cache file and serves the result.
+	 *
+	 * The production itself is shared with the render-time path, so both go
+	 * through the same lock and write exactly the same file.
 	 *
 	 * @param string $cache_path Absolute path of the cache file.
 	 * @param array  $resolved   Resolved source.
@@ -361,90 +364,26 @@ class SFIR_Endpoint {
 	 * @return void
 	 */
 	protected static function generate_with_lock( $cache_path, array $resolved, array $size, array $params, array $geometry ) {
-		$lock_path = $cache_path . '.lock';
+		$result = SFIR_Generator::generate_locked( $cache_path, $resolved, $size, $params, $geometry, self::LOCK_WAIT );
 
-		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_fopen
-		$handle = @fopen( $lock_path, 'c' );
-
-		if ( $handle && flock( $handle, LOCK_EX | LOCK_NB ) ) {
-			clearstatcache( true, $cache_path );
-
-			$error = '';
-
-			if ( ! SFIR_Cache::is_fresh( $cache_path, $resolved['path'] ) ) {
-				$error = SFIR_Resizer::generate( $resolved['path'], $size['mime'], $cache_path, $params, $geometry );
-			}
-
-			flock( $handle, LOCK_UN );
-			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
-			// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.unlink_unlink
-			@unlink( $lock_path );
-
-			if ( '' !== $error ) {
-				SFIR_Logger::log( $error, 'GD failed to generate the resized copy.', $resolved['path'], $params );
-				self::serve_placeholder( $error, $params['w'], $params['h'] );
-				return;
-			}
-
-			// Reaching this point proves that requests for missing cache files
-			// arrive here, which is exactly what the admin screen wants to know.
-			SFIR_Diagnostics::confirm();
-
-			self::serve_file( $cache_path, self::mime_for_format( $params['f'] ), true );
+		if ( 'error' === $result['status'] ) {
+			SFIR_Logger::log( $result['error'], 'GD failed to generate the resized copy.', $resolved['path'], $params );
+			self::serve_placeholder( $result['error'], $params['w'], $params['h'] );
 			return;
 		}
 
-		if ( $handle ) {
-			fclose( $handle ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose
+		if ( 'busy' === $result['status'] ) {
+			// Another request is still working on it: serve the untouched
+			// original rather than break the page.
+			self::serve_file( $resolved['path'], $size['mime'], false );
+			return;
 		}
 
-		// Another request is already generating this file: wait briefly for it.
-		$deadline = microtime( true ) + self::LOCK_WAIT;
+		// Reaching this point proves that requests for missing cache files
+		// arrive here, which is exactly what the admin screen wants to know.
+		SFIR_Diagnostics::confirm();
 
-		while ( microtime( true ) < $deadline ) {
-			usleep( 150000 );
-			clearstatcache( true, $cache_path );
-
-			if ( SFIR_Cache::is_fresh( $cache_path, $resolved['path'] ) ) {
-				SFIR_Diagnostics::confirm();
-				self::serve_file( $cache_path, self::mime_for_format( $params['f'] ), true );
-				return;
-			}
-		}
-
-		// Still not ready: serve the untouched original rather than break the page.
-		self::serve_file( $resolved['path'], $size['mime'], false );
-	}
-
-	/**
-	 * Tells whether a path stays inside the cache directory.
-	 *
-	 * @param string $path Absolute path, the file itself need not exist yet.
-	 * @return bool
-	 */
-	protected static function is_inside_cache( $path ) {
-		$root = SFIR_Cache::get_cache_dir();
-
-		if ( '' === $root ) {
-			return false;
-		}
-
-		$root_real = realpath( $root );
-
-		if ( false === $root_real ) {
-			return false;
-		}
-
-		$root_real = str_replace( '\\', '/', $root_real );
-
-		$dir_real = realpath( dirname( $path ) );
-
-		if ( false !== $dir_real ) {
-			return SFIR_Core::is_path_within( str_replace( '\\', '/', $dir_real ) . '/' . basename( $path ), $root_real );
-		}
-
-		// The sub-directory does not exist yet: check the normalised path instead.
-		return SFIR_Core::is_path_within( str_replace( '\\', '/', $path ), $root_real );
+		self::serve_file( $cache_path, self::mime_for_format( $params['f'] ), true );
 	}
 
 	/**

@@ -130,6 +130,7 @@ SFIR_TestRunner::group( '11.2.13 uninstall' );
 set_transient( 'sfir_size_' . md5( 'lifecycle-probe' ), array( 'mtime' => 1 ), HOUR_IN_SECONDS );
 update_option( SFIR_Logger::NOTICE_OPTION, array( 'probe' => 1 ), false );
 update_user_meta( 1, 'sfir_admin_locale', 'ru_RU' );
+SFIR_Generator::set_mode( SFIR_Generator::MODE_ALWAYS );
 
 SFIR_TestRunner::check(
 	false !== get_transient( 'sfir_size_' . md5( 'lifecycle-probe' ) ),
@@ -158,6 +159,11 @@ SFIR_TestRunner::equals(
 	'',
 	(string) get_user_meta( 1, 'sfir_admin_locale', true ),
 	'uninstall removes the stored language choice'
+);
+SFIR_TestRunner::equals(
+	SFIR_Generator::MODE_AUTO,
+	SFIR_Generator::get_mode(),
+	'uninstall removes the stored generation mode'
 );
 SFIR_TestRunner::check( file_exists( $fixtures['jpeg'] ), 'uninstall keeps the media library files' );
 SFIR_TestRunner::check( is_dir( wp_get_upload_dir()['basedir'] ), 'uninstall keeps the uploads directory' );

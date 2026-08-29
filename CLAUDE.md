@@ -64,14 +64,22 @@ section 6 of `TEST-REPORT.md`, then run `tests/run-tests.sh`.
 * Admin actions are POST + nonce + `current_user_can( 'manage_options' )`.
 * No external HTTP requests, no tracking, no CDN assets, no bundled binaries.
 * GD only. No Imagick, no AVIF, no S3/CDN, no REST API, no page builder
-  integrations, no settings beyond the ones already on the admin screen.
+  integrations. Settings are kept to the ones already on the admin screen: a
+  new one needs a reason no default can cover, and the generation mode is the
+  standing example — some servers cannot be configured at all, so the plugin
+  has to be told.
 * The admin screen has exactly three tabs: Cache, Check and log, Documentation.
   New material goes into one of them rather than into a fourth.
 * `docs/sf-image-resizer.md` is what the Documentation tab hands out for an AI
   assistant to read. Keep it in step with the functions and their parameters:
   a stale reference makes an assistant write markup that does not work.
 * A broken image must never break a page: failures degrade to an SVG
-  placeholder with an error code plus one log line.
+  placeholder with an error code plus one log line. A copy that cannot be
+  produced while rendering degrades further up the chain, to the untouched
+  original, because a correct oversized image beats a placeholder.
+* `sf_img()` must never return a cache URL with no file behind it while the
+  render-time mode is on. That mode exists precisely for servers that answer
+  such a URL with 404, so returning one would defeat it.
 
 ## Every `phpcs:ignore` needs a reason
 

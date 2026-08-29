@@ -2,25 +2,25 @@
 
 | | |
 |---|---|
-| Plugin version | 1.2.0 |
+| Plugin version | 1.3.0 |
 | WordPress used for testing | 7.0.3 (current stable branch at the time of writing) |
 | `Requires at least` / `Tested up to` | 7.0 |
 | `Requires PHP` | 7.4 (the minimum WordPress 7.0 itself requires) |
 | PHP used for testing | 8.4.19, GD with WebP support |
 | Database | SQLite, through the official *SQLite Database Integration* drop-in |
 | Web server | PHP built-in server, pretty permalinks enabled (`/%postname%/`) |
-| Date | 2026-08-28 |
+| Date | 2026-08-29 |
 | Web server note | `PHP_CLI_SERVER_WORKERS=6`, so the admin self-check can call the site over loopback |
 
 ## 1. Summary
 
 | Suite | Checks | Passed | Failed |
 |---|---:|---:|---:|
-| 11.1 Standalone unit tests (PHPUnit, no WordPress) | 47 tests / 261 assertions | 47 | 0 |
-| 11.2 Integration suite (`run.php`) | 147 | 147 | 0 |
-| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 136 | 136 | 0 |
+| 11.1 Standalone unit tests (PHPUnit, no WordPress) | 56 tests / 281 assertions | 56 | 0 |
+| 11.2 Integration suite (`run.php`) | 168 | 168 | 0 |
+| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 148 | 148 | 0 |
 | 11.2.12 WebP fallback (`webp-fallback.php`) | 8 | 8 | 0 |
-| 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 28 | 28 | 0 |
+| 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 29 | 29 | 0 |
 | PHPCS with the `WordPress` ruleset + `PHPCompatibilityWP` | — | 0 errors, 0 warnings | 0 |
 | 11.3 Plugin Check, all categories, including experimental | — | 0 errors, 0 warnings | 0 |
 
@@ -28,8 +28,10 @@
 
 ## 2. Unit tests (spec 11.1)
 
-Run without WordPress; only `__()`, `esc_html()`, `esc_attr()` and
-`wp_parse_args()` are stubbed in `tests/bootstrap.php`.
+Run without WordPress; only `__()`, `esc_html()`, `esc_attr()`,
+`wp_parse_args()`, `get_option()`, `update_option()` and `apply_filters()` are
+stubbed in `tests/bootstrap.php`, along with a two-method stand-in for
+`SFIR_Diagnostics` so the generation mode can be resolved without a database.
 
 | Spec case | Test | Status |
 |---|---|---|
@@ -55,8 +57,12 @@ Run without WordPress; only `__()`, `esc_html()`, `esc_attr()` and
 
 Extra unit coverage beyond the specification: colour normalisation, the
 canonical parameter string, placeholder sizing, placeholder markup injection
-resistance, directory containment checks, and geometry edge cases (extreme
-aspect ratios, unusable source sizes).
+resistance, directory containment checks, geometry edge cases (extreme aspect
+ratios, unusable source sizes), and the 1.3.0 generation mode — the three
+values, the rejection of anything else, how "automatic" follows the
+configuration check, that the answer is memoised for the whole request, and
+that the rendering budget is a positive, filterable pair of limits
+(`GeneratorTest`).
 
 ## 3. Integration tests (spec 11.2)
 
@@ -99,11 +105,13 @@ attachment-ID path is exercised.
 | 1.2.0 Language picker, seven locales, per-user memory | `1.2.0 language` | 28 | pass |
 | 1.2.0 The Markdown reference, copy button and download | `1.2.0 markdown reference` | 7 | pass |
 | 1.2.0 The "Settings" link in the plugins list | `1.2.0 plugins list` | 3 | pass |
+| 1.3.0 Render-time generation, the budget and the fallback | `1.3.0 render-time generation` | 21 | pass |
+| 1.3.0 The generation mode setting, nonce and validation | `1.3.0 generation mode` | 12 | pass |
 | 11.2.11 Log rotation past 2 MB | `11.2.11 log rotation` | 6 | pass |
 | 11.2.12 WebP fallback with `imagewebp()` disabled | `11.2.12 webp fallback` | 8 | pass |
 | 11.2.13 Activation | `11.2.13 activation` | 12 | pass |
 | 11.2.13 Deactivation keeps everything | `11.2.13 deactivation` | 6 | pass |
-| 11.2.13 Uninstall removes everything | `11.2.13 uninstall` | 10 | pass |
+| 11.2.13 Uninstall removes everything | `11.2.13 uninstall` | 11 | pass |
 
 ### Notes on how a few cases were verified
 
@@ -180,17 +188,41 @@ attachment-ID path is exercised.
 * **1.2.0 the Markdown reference.** The documentation tab is asserted to carry
   the field, the copy button and the download link, and the `.md` file is
   fetched over HTTP and compared byte for byte with what the screen shows.
+* **1.3.0 render-time generation.** The three modes are exercised against real
+  files. In `never` the disk stays empty after `sf_img()` returns and the URL is
+  still the cache file. In `always` the file is on disk the moment `sf_img()`
+  returns, really has the requested width and format, and an HTTP request for it
+  comes back 200 **without** the `X-SFIR` header — proving the web server
+  answered it as a static file and the plugin was not involved, which is the
+  whole point of the mode. Every candidate of a `sf_img_srcset()` is checked to
+  exist and to have the width its descriptor claims.
+* **1.3.0 the budget and the fallback.** A filter on `sfir_generation_budget`
+  reduces the budget to nothing, which is the state a page reaches after enough
+  images. `sf_img()` then returns the untouched original — asserted to be byte
+  for byte the source URL, to answer 200 over HTTP, and to be described by
+  `sf_img_width()`/`sf_img_height()` with the original's dimensions rather than
+  the requested ones. `sf_img_srcset()` returns an empty string rather than
+  candidates carrying widths they do not have.
+* **1.3.0 the probe stays honest.** With the mode set to `always`, the URL the
+  browser check hands out is asserted still to point at a file that does not
+  exist. Render-time generation must not pre-create it, or the check would
+  confirm the request path on a server where it does not work, and "automatic"
+  would then switch the site into a mode that leaves its images broken.
+* **1.3.0 the setting.** The radio group is submitted over HTTP with and
+  without a nonce; the unsigned POST answers 403 and leaves the option alone,
+  the signed one stores the value and the screen comes back with it selected.
+  A value that is not one of the three modes falls back to `auto`.
 
 ## 4. PHPCS / WordPress Coding Standards
 
 ```
 $ phpcs --standard=phpcs.xml.dist --parallel=1 --report=summary
-............. 13 / 13 (100%)
+.............. 14 / 14 (100%)
 
-Time: 1.5 secs; Memory: 28MB
+Time: 1.96 secs; Memory: 28MB
 ```
 
-All 13 PHP files of the plugin are inspected, with no errors and no warnings. The ruleset (`phpcs.xml.dist`) is `WordPress` plus
+All 14 PHP files of the plugin are inspected, with no errors and no warnings. The ruleset (`phpcs.xml.dist`) is `WordPress` plus
 `PHPCompatibilityWP` with `testVersion` set to `7.4-`, so PHP 7.4 through the
 current release are all checked.
 
@@ -282,12 +314,15 @@ suite, the WebP fallback suite, the lifecycle suite and Plugin Check. It exits
 non-zero if any step fails.
 
 The admin suite leaves the language of the screen where it found it, but it
-does switch through all seven locales while it runs. Start it with no stored
-choice for the test administrator:
+does switch through all seven locales while it runs, and both integration
+suites switch the generation mode. Start them from a clean slate:
 
 ```bash
-wp eval 'delete_user_meta( 1, "sfir_admin_locale" );'
+wp eval 'delete_user_meta( 1, "sfir_admin_locale" ); delete_option( "sfir_generate_mode" );'
 ```
+
+Both suites restore the shipped default when they finish, and `run.php` asserts
+that it did.
 
 Individual suites can also be run directly:
 
@@ -380,3 +415,21 @@ completeness.
     preference for one screen, so it lives in user meta (`sfir_admin_locale`)
     and is removed with the rest of the plugin's data on uninstall. Two
     administrators can read the same screen in different languages.
+15. **Render-time generation is a setting, not a detection (1.3.0).** The
+    plugin cannot tell from inside PHP whether a request for a missing cache
+    file would have reached it, because such a request never arrives when it
+    does not. "Automatic" therefore produces copies while rendering until the
+    browser check has confirmed the request path, and only then stops. On a
+    server where the path works, one visit to the settings screen is what
+    flips it; until then the site is merely doing more work than it needs to,
+    which is the safe direction to be wrong in.
+16. **Level 1 of the configuration check cannot fire while rendering is
+    eager.** The request handler is what records that confirmation, and in
+    eager mode the file already exists so the handler never runs. That is why
+    the browser probe of level 2 is built without going through `sf_img()`:
+    it is the only remaining signal, so it must keep missing the cache
+    deliberately. The suite asserts exactly that.
+17. **The budget is per PHP request, not per page.** A page assembled from
+    several requests, or a long-running WP-CLI process, gets a fresh budget
+    each time. `SFIR_Cache::flush_runtime_cache()` resets it too, so a test
+    that simulates many renders inside one process behaves like many requests.

@@ -54,6 +54,7 @@ class SFIR_Admin {
 		add_action( 'admin_post_sfir_clear_log', array( __CLASS__, 'handle_clear_log' ) );
 		add_action( 'admin_post_sfir_recheck', array( __CLASS__, 'handle_recheck' ) );
 		add_action( 'admin_post_sfir_language', array( __CLASS__, 'handle_language' ) );
+		add_action( 'admin_post_sfir_generate_mode', array( __CLASS__, 'handle_generate_mode' ) );
 	}
 
 	/**
@@ -198,6 +199,26 @@ class SFIR_Admin {
 		SFIR_I18n::set_user_locale( $locale );
 
 		self::redirect_back( $tab );
+	}
+
+	/**
+	 * Handles the generation mode form.
+	 *
+	 * @return void
+	 */
+	public static function handle_generate_mode() {
+		self::verify_request( 'sfir_generate_mode' );
+
+		// The nonce and the capability are checked by verify_request() above;
+		// the sniff cannot follow the call into that helper.
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$mode = isset( $_POST['sfir_mode'] ) ? sanitize_key( wp_unslash( $_POST['sfir_mode'] ) ) : SFIR_Generator::MODE_AUTO;
+
+		SFIR_Generator::set_mode( $mode );
+
+		self::set_notice( 'success', __( 'The generation mode has been saved.', 'sf-image-resizer' ) );
+
+		self::redirect_back( self::TAB_CHECK );
 	}
 
 	/**
@@ -507,6 +528,8 @@ class SFIR_Admin {
 			<?php submit_button( __( 'Check again', 'sf-image-resizer' ), 'secondary', 'sfir-recheck', false ); ?>
 		</form>
 
+		<?php self::render_generate_mode( $action ); ?>
+
 		<h2><?php esc_html_e( 'Error log', 'sf-image-resizer' ); ?></h2>
 		<p class="description">
 			<?php esc_html_e( 'The 50 first lines of the log file are shown below.', 'sf-image-resizer' ); ?>
@@ -520,6 +543,70 @@ class SFIR_Admin {
 			<?php submit_button( __( 'Clear log', 'sf-image-resizer' ), 'secondary', 'sfir-clear-log', false ); ?>
 		</form>
 		<?php
+	}
+
+	/**
+	 * Renders the picker that decides when copies are produced.
+	 *
+	 * @param string $action URL of admin-post.php, already escaped.
+	 * @return void
+	 */
+	protected static function render_generate_mode( $action ) {
+		$current = SFIR_Generator::get_mode();
+		$eager   = SFIR_Generator::is_eager();
+		?>
+		<h2><?php esc_html_e( 'When copies are produced', 'sf-image-resizer' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( 'If your host cannot be configured to hand a missing cache file to WordPress, let the plugin produce the copies while the page is rendered. The first visit to each page is then slower, and every visit after that is served straight from disk.', 'sf-image-resizer' ); ?>
+		</p>
+
+		<form method="post" action="<?php echo $action; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by the caller. ?>" class="sfir-form">
+			<?php wp_nonce_field( 'sfir_generate_mode' ); ?>
+			<input type="hidden" name="action" value="sfir_generate_mode" />
+
+			<fieldset class="sfir-modes">
+				<?php foreach ( SFIR_Generator::get_modes() as $value => $label ) : ?>
+					<label>
+						<input type="radio" name="sfir_mode" value="<?php echo esc_attr( $value ); ?>" <?php checked( $current, $value ); ?> />
+						<span><?php echo esc_html( $label ); ?></span>
+					</label>
+					<p class="description"><?php echo esc_html( self::get_mode_description( $value ) ); ?></p>
+				<?php endforeach; ?>
+			</fieldset>
+
+			<p class="description">
+				<strong>
+					<?php
+					echo esc_html(
+						$eager
+							? __( 'Right now: copies are produced while the page is rendered.', 'sf-image-resizer' )
+							: __( 'Right now: copies are produced the first time a browser asks for them.', 'sf-image-resizer' )
+					);
+					?>
+				</strong>
+			</p>
+
+			<?php submit_button( __( 'Save', 'sf-image-resizer' ), 'secondary', 'sfir-save-mode', false ); ?>
+		</form>
+		<?php
+	}
+
+	/**
+	 * Returns the explanation shown under one generation mode.
+	 *
+	 * @param string $mode One of the SFIR_Generator::MODE_* constants.
+	 * @return string
+	 */
+	protected static function get_mode_description( $mode ) {
+		if ( SFIR_Generator::MODE_ALWAYS === $mode ) {
+			return __( 'Pick this when the check above keeps failing and the server configuration cannot be changed. Works everywhere, including nginx without the rewrite rule.', 'sf-image-resizer' );
+		}
+
+		if ( SFIR_Generator::MODE_NEVER === $mode ) {
+			return __( 'The lightest option for page rendering, but it needs the web server to pass requests for missing files to WordPress.', 'sf-image-resizer' );
+		}
+
+		return __( 'Produce copies while rendering until the check above confirms that requests for missing files reach the plugin, then stop. Recommended.', 'sf-image-resizer' );
 	}
 
 	// ---------------------------------------------------------------------

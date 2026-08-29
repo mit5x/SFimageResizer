@@ -65,6 +65,7 @@ function sfir_uninstall_site() {
 	delete_option( 'sfir_logged_notices' );
 	delete_option( 'sfir_version' );
 	delete_option( 'sfir_pretty_urls_confirmed' );
+	delete_option( 'sfir_generate_mode' );
 
 	// Remove the per-administrator language choice for the plugin screen.
 	delete_metadata( 'user', 0, 'sfir_admin_locale', '', true );

@@ -935,6 +935,34 @@ class SFIR_Core {
 	}
 
 	/**
+	 * Returns the public URL of a resolved source file.
+	 *
+	 * Used when a resized copy cannot be produced in time: the untouched
+	 * original is a correct image, which a cache URL with no file behind it
+	 * would not be.
+	 *
+	 * @param array $resolved Resolution result from resolve_source().
+	 * @return string URL, or an empty string when it cannot be built.
+	 */
+	public static function source_url( array $resolved ) {
+		if ( empty( $resolved['ok'] ) || ! isset( $resolved['relative'] ) ) {
+			return '';
+		}
+
+		if ( self::ROOT_UPLOADS === $resolved['root'] ) {
+			$uploads = wp_get_upload_dir();
+
+			if ( empty( $uploads['baseurl'] ) ) {
+				return '';
+			}
+
+			return trailingslashit( $uploads['baseurl'] ) . $resolved['relative'];
+		}
+
+		return trailingslashit( site_url( '/' ) ) . $resolved['relative'];
+	}
+
+	/**
 	 * Converts a value into a printable, single line string for the log.
 	 *
 	 * @param mixed $value Value to describe.

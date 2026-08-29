@@ -25,6 +25,12 @@ $fixtures = sfir_build_fixtures();
 SFIR_Cache::clear();
 sfir_reset_log();
 
+// Sections 1 to 11 describe what happens when a browser asks for a file that
+// is not there yet, so they pin the mode that leaves generation to that
+// request. The 1.3.0 group at the bottom exercises the other two modes.
+SFIR_Generator::set_mode( SFIR_Generator::MODE_NEVER );
+SFIR_Cache::flush_runtime_cache();
+
 /* ---------------------------------------------------------------------------
  * 1. Pretty URLs, generation and caching.
  * ------------------------------------------------------------------------ */
@@ -793,5 +799,123 @@ SFIR_TestRunner::check( false === strpos( $rotated, 'filler line 1 ' ), 'the old
 SFIR_TestRunner::check( false !== strpos( $rotated, 'line written after the limit was exceeded' ), 'the new line is appended' );
 
 sfir_reset_log();
+
+/* --------------------------------------------------------------------------
+ * 1.3.0: producing the copy while the page renders.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.3.0 render-time generation' );
+
+// Mode "never" is the behaviour every earlier version had.
+SFIR_Generator::set_mode( SFIR_Generator::MODE_NEVER );
+SFIR_Cache::flush_runtime_cache();
+
+SFIR_TestRunner::check( ! SFIR_Generator::is_eager(), 'mode "never" leaves generation to the request' );
+
+$lazy_url  = sf_img( $jpeg_url, 'w=311&f=jpg' );
+$lazy_path = sfir_url_to_path( $lazy_url );
+clearstatcache();
+
+SFIR_TestRunner::check( ! file_exists( $lazy_path ), 'nothing is written to disk while rendering' );
+SFIR_TestRunner::check( false !== strpos( $lazy_url, '-311x0-c0-q75-' ), 'the URL is still the cache file', $lazy_url );
+
+// Mode "always" produces the file before the markup leaves the template.
+SFIR_Generator::set_mode( SFIR_Generator::MODE_ALWAYS );
+SFIR_Cache::flush_runtime_cache();
+
+SFIR_TestRunner::check( SFIR_Generator::is_eager(), 'mode "always" produces copies while rendering' );
+
+$eager_url  = sf_img( $jpeg_url, 'w=312&f=jpg' );
+$eager_path = sfir_url_to_path( $eager_url );
+clearstatcache();
+
+SFIR_TestRunner::check( file_exists( $eager_path ), 'the file is on disk as soon as sf_img() returns', $eager_path );
+SFIR_TestRunner::check( false !== strpos( $eager_url, '-312x0-c0-q75-' ), 'the URL is the cache file, not the original', $eager_url );
+
+$eager_size = getimagesize( $eager_path );
+
+SFIR_TestRunner::equals( 312, is_array( $eager_size ) ? $eager_size[0] : 0, 'the copy really has the requested width' );
+SFIR_TestRunner::equals( 'image/jpeg', is_array( $eager_size ) ? $eager_size['mime'] : '', 'the copy really has the requested format' );
+
+// The web server can now answer without PHP, which is the whole point.
+$static = sfir_fetch( $eager_url );
+
+SFIR_TestRunner::equals( 200, $static['status'], 'the browser gets the file straight from disk' );
+SFIR_TestRunner::check( ! isset( $static['headers']['x-sfir'] ), 'the plugin was not involved in serving it' );
+
+// Every candidate of a srcset is produced too.
+SFIR_Cache::flush_runtime_cache();
+
+$eager_set        = sf_img_srcset( $jpeg_url, 'q=71' );
+$eager_candidates = array_map( 'trim', explode( ',', $eager_set ) );
+$eager_missing    = 0;
+$eager_wrong      = 0;
+
+foreach ( $eager_candidates as $candidate ) {
+	$parts = explode( ' ', $candidate );
+	$path  = sfir_url_to_path( $parts[0] );
+	clearstatcache();
+
+	if ( ! is_file( $path ) ) {
+		++$eager_missing;
+		continue;
+	}
+
+	$dimensions = getimagesize( $path );
+
+	if ( ! is_array( $dimensions ) || (int) $dimensions[0] !== (int) rtrim( $parts[1], 'w' ) ) {
+		++$eager_wrong;
+	}
+}
+
+SFIR_TestRunner::check( count( $eager_candidates ) > 1, 'the srcset has several candidates', (string) count( $eager_candidates ) );
+SFIR_TestRunner::equals( 0, $eager_missing, 'every srcset candidate exists on disk' );
+SFIR_TestRunner::equals( 0, $eager_wrong, 'every srcset candidate really has the width it claims' );
+
+// A request that has used up its budget degrades to the untouched original
+// rather than to a URL with no file behind it.
+SFIR_Cache::flush_runtime_cache();
+
+$exhaust = function () {
+	return array(
+		'files'   => 0,
+		'seconds' => 0.0,
+	);
+};
+
+add_filter( 'sfir_generation_budget', $exhaust );
+
+$broke_url = sf_img( $jpeg_url, 'w=313&f=jpg' );
+
+SFIR_TestRunner::equals( $jpeg_url, $broke_url, 'sf_img() falls back to the original' );
+SFIR_TestRunner::equals( 2000, sf_img_width( $jpeg_url, 'w=313&f=jpg' ), 'the reported width is the width of that original' );
+SFIR_TestRunner::equals( 1000, sf_img_height( $jpeg_url, 'w=313&f=jpg' ), 'the reported height matches it' );
+
+$fallback_probe = sfir_fetch( $broke_url );
+
+SFIR_TestRunner::equals( 200, $fallback_probe['status'], 'the fallback URL really resolves to an image' );
+
+SFIR_Cache::flush_runtime_cache();
+
+SFIR_TestRunner::equals( '', sf_img_srcset( $jpeg_url, 'q=72' ), 'a srcset with nothing generated is empty, never wrong' );
+
+remove_filter( 'sfir_generation_budget', $exhaust );
+
+// The browser check must keep testing the request path, so its probe URL is
+// never one of the files rendering produced.
+SFIR_Cache::flush_runtime_cache();
+
+$probe_url  = SFIR_Diagnostics::get_probe_url();
+$probe_path = sfir_url_to_path( $probe_url );
+clearstatcache();
+
+SFIR_TestRunner::check( '' !== $probe_url, 'the check still builds a probe URL' );
+SFIR_TestRunner::check( ! file_exists( $probe_path ), 'the probe file is deliberately missing even in eager mode', $probe_path );
+
+// Leave the site on the default the plugin ships with.
+delete_option( SFIR_Generator::MODE_OPTION );
+SFIR_Cache::flush_runtime_cache();
+
+SFIR_TestRunner::equals( SFIR_Generator::MODE_AUTO, SFIR_Generator::get_mode(), 'the mode is back to the shipped default' );
 
 exit( SFIR_TestRunner::summary() );

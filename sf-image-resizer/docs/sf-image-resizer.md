@@ -137,9 +137,11 @@ candidates are never cropped.
 `src` is only used by browsers without `srcset` support and by crawlers and
 preview generators. Two reasonable choices:
 
-* the original, `$image['url']` — simplest, but heavy if the original is large;
+* the original, `$image['url']` — simplest, and the safest: it exists whatever
+  happens, so the image always shows even on the very first visit;
 * a middle size, `sf_img( $image, 'w=960' )` — then `width`/`height` must use
-  the same `w=960`.
+  the same `w=960`, and both must come from `sf_img_width()`/`sf_img_height()`
+  rather than from constants, because that call can fall back to the original.
 
 ## Complete examples
 
@@ -204,9 +206,22 @@ Note the absence of `loading="lazy"` and the explicit `sizes`.
 
 ## Behaviour worth knowing
 
-* **First render.** Copies that do not exist yet are created by the browser's
-  own request for them, one request per file. A page with many new sizes may
-  need a second load before every image appears. This is normal.
+* **First render.** A copy that does not exist yet is created either while the
+  template renders or by the browser's own request for it, depending on the
+  mode set on *Settings → SF Image resizer → Check and log*. Either way your
+  markup is identical: you never choose, and you never wait for anything in
+  your template code. A page with many new sizes may be slower on its first
+  visit, or may need a second visit before every size exists. Both are normal.
+* **The fallback.** If a copy has to be produced during the render and cannot
+  be — the page has already used its generation budget, or GD refused the file
+  — `sf_img()` returns the URL of the **untouched original** and
+  `sf_img_width()`/`sf_img_height()` report that original's dimensions. The
+  image is correct, just larger than asked for, and the next visit produces the
+  proper copy. `sf_img_srcset()` leaves such candidates out rather than
+  describing them with a width they do not have, so a `srcset` can come back
+  shorter than the ladder, or empty, on a first visit. This is why `src` should
+  carry the original and why the markup must not assume a fixed number of
+  candidates.
 * **Formats.** Output is WebP by default. If the server's GD has no WebP
   support the plugin produces JPG instead and the cached file gets a `.jpg`
   extension; nothing in your markup changes.
