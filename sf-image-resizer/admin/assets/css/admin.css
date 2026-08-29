@@ -110,3 +110,42 @@
 	margin: 2px 0 0 24px;
 	max-width: 46em;
 }
+
+.sfir-check-row {
+	border-left: 4px solid #dcdcde;
+	background: #fff;
+	padding: 10px 14px;
+	margin: 12px 0;
+}
+
+.sfir-check-row.is-working {
+	border-left-color: #00a32a;
+}
+
+.sfir-check-title {
+	margin: 0 0 4px;
+}
+
+.sfir-check-mark {
+	display: inline-block;
+	width: 1.2em;
+	color: #8c8f94;
+	font-weight: 700;
+}
+
+.sfir-check-row.is-working .sfir-check-mark {
+	color: #00a32a;
+}
+
+.sfir-check-state {
+	margin: 0 0 4px 1.2em;
+}
+
+.sfir-check-row .description {
+	margin: 0 0 0 1.2em;
+	max-width: 46em;
+}
+
+.sfir-verdict {
+	max-width: 46em;
+}

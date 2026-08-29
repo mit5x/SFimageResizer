@@ -208,7 +208,8 @@ Note the absence of `loading="lazy"` and the explicit `sizes`.
 
 * **First render.** A copy that does not exist yet is created either while the
   template renders or by the browser's own request for it, depending on the
-  mode set on *Settings → SF Image resizer → Check and log*. Either way your
+  mode set on *Settings → SF Image resizer → Check and log*. Both are normal;
+  which ones a server supports is reported by the check on that tab. Either way your
   markup is identical: you never choose, and you never wait for anything in
   your template code. A page with many new sizes may be slower on its first
   visit, or may need a second visit before every size exists. Both are normal.

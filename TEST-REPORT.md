@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Plugin version | 1.3.0 |
+| Plugin version | 1.4.0 |
 | WordPress used for testing | 7.0.3 (current stable branch at the time of writing) |
 | `Requires at least` / `Tested up to` | 7.0 |
 | `Requires PHP` | 7.4 (the minimum WordPress 7.0 itself requires) |
@@ -18,7 +18,7 @@
 |---|---:|---:|---:|
 | 11.1 Standalone unit tests (PHPUnit, no WordPress) | 56 tests / 281 assertions | 56 | 0 |
 | 11.2 Integration suite (`run.php`) | 168 | 168 | 0 |
-| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 148 | 148 | 0 |
+| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 167 | 167 | 0 |
 | 11.2.12 WebP fallback (`webp-fallback.php`) | 8 | 8 | 0 |
 | 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 29 | 29 | 0 |
 | PHPCS with the `WordPress` ruleset + `PHPCompatibilityWP` | — | 0 errors, 0 warnings | 0 |
@@ -95,7 +95,7 @@ attachment-ID path is exercised.
 | 11.2.10 Log viewer, escaping, clear log with and without nonce | `11.2.10 log viewer` | 12 | pass |
 | 11.2.10 Documentation and local-only assets | `11.2.10 documentation and assets` | 14 | pass |
 | — Self-check level 1: real traffic records the confirmation, throttled | `self-check level 1: real traffic` | 7 | pass |
-| — Self-check level 1: the screen shows it and warns about nothing | `self-check level 1: what the screen shows` | 7 | pass |
+| — Self-check level 1: the screen shows it and warns about nothing | `self-check level 1: what the screen shows` | 6 | pass |
 | — Self-check level 2: the browser probe and its collapsed hints | `self-check level 2: the browser probe` | 11 | pass |
 | — Self-check: the confirmation endpoint, capability and nonce | `self-check: the confirmation endpoint` | 9 | pass |
 | — Self-check: "check again" resets the confirmation | `self-check: reset` | 5 | pass |
@@ -107,6 +107,7 @@ attachment-ID path is exercised.
 | 1.2.0 The "Settings" link in the plugins list | `1.2.0 plugins list` | 3 | pass |
 | 1.3.0 Render-time generation, the budget and the fallback | `1.3.0 render-time generation` | 21 | pass |
 | 1.3.0 The generation mode setting, nonce and validation | `1.3.0 generation mode` | 12 | pass |
+| 1.4.0 The render half of the check, and the two answers kept apart | `1.4.0 the render check` | 21 | pass |
 | 11.2.11 Log rotation past 2 MB | `11.2.11 log rotation` | 6 | pass |
 | 11.2.12 WebP fallback with `imagewebp()` disabled | `11.2.12 webp fallback` | 8 | pass |
 | 11.2.13 Activation | `11.2.13 activation` | 12 | pass |
@@ -212,6 +213,20 @@ attachment-ID path is exercised.
   without a nonce; the unsigned POST answers 403 and leaves the option alone,
   the signed one stores the value and the screen comes back with it selected.
   A value that is not one of the three modes falls back to `auto`.
+* **1.4.0 the second half of the check.** The render probe is asserted to
+  produce a real file, unlike the request probe, and an HTTP request for it is
+  asserted to answer 200 with an image and **without** the `X-SFIR` header,
+  which is what makes it a test of the render-time path rather than of the
+  request path. Two consecutive probes must differ, and the two probes must
+  never name the same file — otherwise a copy produced by one would answer for
+  the other and a server without the nginx rule would be told its request path
+  works. The suite then puts the screen into the split state that server 2 of
+  the bug report is in — render confirmed, request not — and asserts that one
+  row is marked working, the other unanswered, the verdict says it is not a
+  fault, and only the unanswered check is still handed a probe. Finally the
+  confirmation endpoint is driven directly to prove it keeps the two answers
+  apart, refuses an unknown check name with 400, and that "Check again" clears
+  both.
 
 ## 4. PHPCS / WordPress Coding Standards
 
@@ -433,3 +448,17 @@ completeness.
     several requests, or a long-running WP-CLI process, gets a fresh budget
     each time. `SFIR_Cache::flush_runtime_cache()` resets it too, so a test
     that simulates many renders inside one process behaves like many requests.
+18. **The check reports two answers, not one verdict (1.4.0).** The two ways of
+    producing a copy are alternatives, and a server supporting only one is
+    normal rather than faulty. Reporting a single "confirmed / not confirmed"
+    made a perfectly healthy nginx look broken, which is what prompted this
+    change. Each mechanism is therefore stored, tested and displayed on its
+    own, and the summary line only interprets the pair.
+19. **The two probes must never name the same file.** They differ in requested
+    quality (61 for the request probe, 62 for the render probe), which puts a
+    different `-q` segment in every cache file name. Widths alone would not be
+    enough: they are clamped to `SFIR_MAX_DIMENSION`, so a range above that
+    ceiling collapses to one name — the bug fixed in 1.4.0, where every render
+    probe reused `probe-5000x0-c0-q62-…`. If the two ever collided, the file
+    the render probe created would answer the request probe and confirm a
+    request path that does not work.

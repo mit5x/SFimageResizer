@@ -4,7 +4,7 @@ Tags: images, resize, thumbnails, webp, performance
 Requires at least: 7.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -117,22 +117,27 @@ No. The same plain URL is returned every time, whether the file exists yet or
 not.
 
 = What if my server does not pass missing files to WordPress? =
-Then nothing is broken and nothing needs configuring. Settings -> SF Image
-resizer -> Check and log carries a setting for when copies are produced, and
-its default, "Automatic", produces them while the page is rendered until the
-configuration check confirms that your server passes such requests along. On a
-server where it never can — nginx without the fallback rule answers a missing
-file with 404 and never reaches PHP — the plugin simply keeps producing them
-while rendering, and your images appear.
+Then nothing is broken and nothing needs configuring. The configuration check
+on Settings -> SF Image resizer -> Check and log tests both ways of producing a
+copy and reports them separately. A server that supports only "generating while
+the page is rendered" is perfectly normal; the check says so instead of
+claiming a fault, and the default mode keeps producing your images that way.
 
-If you would rather fix the server, the check offers the nginx location block
-to add. Apache is covered by the .htaccess the plugin writes, and the usual
-nginx configuration already ends in `try_files $uri $uri/ /index.php?$args`.
+If you would rather fix the server, the same tab offers the nginx location
+block to add. Apache is covered by the .htaccess the plugin writes, and the
+usual nginx configuration already ends in
+`try_files $uri $uri/ /index.php?$args`.
+
+= The check says one thing works and the other does not. Is that a problem? =
+No. The two are alternatives, not requirements, and the plugin only needs one
+of them. It is normal for nginx without the extra rule to support only the
+first.
 
 = Which generation mode should I choose? =
-Leave it on "Automatic" unless you have a reason not to. Choose "Always" if you
-want the web server kept out of it entirely. Choose "Never" only if you have
-confirmed the request path works and want the lightest possible page render.
+Leave it on "Automatic" unless you have a reason not to: it uses whichever of
+the other two works on your server. Choose "up front" to keep the web server
+out of it entirely, or "when the browser asks" if the check confirms that works
+here and you want the lightest possible page render.
 
 = Does producing copies while rendering slow my site down? =
 Only the first visit to a page that needs sizes nobody has requested yet, and
@@ -149,6 +154,22 @@ original is used for that one image rather than a broken one.
    the Markdown reference for an AI assistant.
 
 == Changelog ==
+
+= 1.4.0 =
+* The configuration check now tests both ways of producing a copy, separately,
+  and reports each one. Before, it only tested whether a request for a missing
+  file reaches the plugin, so a server that cannot do that showed a permanent
+  "not confirmed" even though its images were being produced perfectly well by
+  the other mechanism. Each line now says plainly whether it works here.
+* When only the render-time mechanism works, the screen says so and says it is
+  not a fault — that is the case the first mode exists for.
+* Rewrote the mode descriptions in plain terms: what each one actually does to
+  your pages, rather than what it does internally.
+* The nginx snippet moved under the modes, where it belongs: it is what makes
+  the on-request mode possible, and it now explains why the ^~ prefix matters.
+* Fixed the check probe reusing one file name. The requested width was clamped
+  to the 5000 pixel ceiling, so every probe asked for the same file and a copy
+  left over from an earlier check could have answered for a fresh one.
 
 = 1.3.0 =
 * New setting on the Check and log tab: when resized copies are produced.
@@ -207,6 +228,11 @@ original is used for that one image rather than a broken one.
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.4.0 =
+The configuration check now tests both ways of producing a copy and reports
+each separately, so a server that only supports one no longer looks broken.
+Clearer wording for the generation modes.
 
 = 1.3.0 =
 Adds the option to produce resized copies while the page is rendered, for hosts

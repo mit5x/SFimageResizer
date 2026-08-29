@@ -266,14 +266,15 @@ SFIR_TestRunner::group( 'self-check level 1: what the screen shows' );
 $page = sfir_admin_request( $check_url );
 
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'Configuration check' ), 'the page shows the configuration check' );
-SFIR_TestRunner::check( false !== strpos( $page['body'], 'Pretty URLs are working.' ), 'the page reports that pretty URLs work' );
-SFIR_TestRunner::check( false !== strpos( $page['body'], 'Confirmed by a real request on' ), 'the page names the moment it was confirmed' );
-SFIR_TestRunner::check( false === strpos( $page['body'], 'location ^~' ), 'no nginx snippet is shown while it is confirmed' );
-SFIR_TestRunner::check( false === strpos( $page['body'], 'Not confirmed automatically yet' ), 'no warning is shown while it is confirmed' );
-SFIR_TestRunner::check( false === strpos( $page['body'], 'AllowOverride' ), 'no Apache note is shown while it is confirmed' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Works on this server. Confirmed on' ), 'the page reports that the request path works' );
+SFIR_TestRunner::check(
+	false !== strpos( $page['body'], 'is-working" data-check="request"' ),
+	'the request row is marked as working'
+);
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'is-unknown" data-check="render"' ), 'the render row is still unanswered' );
 SFIR_TestRunner::check(
 	empty( sfir_admin_settings( $page['body'] )['probeUrl'] ),
-	'no browser probe is handed out once it is confirmed'
+	'no request probe is handed out once that one is confirmed'
 );
 
 SFIR_TestRunner::group( 'self-check level 2: the browser probe' );
@@ -282,10 +283,10 @@ SFIR_Diagnostics::reset();
 
 $page = sfir_admin_request( $check_url );
 
-SFIR_TestRunner::check( false !== strpos( $page['body'], 'Not confirmed automatically yet' ), 'without a confirmation the page says so plainly' );
-SFIR_TestRunner::check( false !== strpos( $page['body'], 'does not mean anything is broken' ), 'the wording avoids claiming a fault' );
-SFIR_TestRunner::check( false !== strpos( $page['body'], 'location ^~' ), 'the nginx snippet is offered as a hint' );
-SFIR_TestRunner::check( false !== strpos( $page['body'], '<details class="sfir-hints">' ), 'the hints are collapsed' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Not confirmed on this server.' ), 'without a confirmation the page says so plainly' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Neither check has answered yet' ), 'the wording avoids claiming a fault' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'location ^~' ), 'the nginx snippet is offered' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'class="sfir-hints"' ), 'the nginx snippet sits in a collapsible block' );
 
 $probe_urls = array();
 
@@ -422,6 +423,148 @@ SFIR_TestRunner::equals(
 	count( (array) glob( SFIR_Diagnostics::get_probe_cache_dir() . '/*.webp' ) ) + count( (array) glob( SFIR_Diagnostics::get_probe_cache_dir() . '/*.jpg' ) ),
 	'the probe cache files were cleaned up'
 );
+
+/* --------------------------------------------------------------------------
+ * The second half of the check: producing a copy while rendering.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.4.0 the render check' );
+
+SFIR_Diagnostics::reset();
+SFIR_Diagnostics::cleanup_probe_files();
+SFIR_Cache::flush_runtime_cache();
+
+$render_probe = SFIR_Diagnostics::get_render_probe_url();
+$render_path  = sfir_url_to_path( $render_probe );
+clearstatcache();
+
+SFIR_TestRunner::check( '' !== $render_probe, 'the render check builds a probe URL', $render_probe );
+SFIR_TestRunner::check( false !== strpos( $render_probe, '/cache_images/' ), 'it is a cache URL', $render_probe );
+SFIR_TestRunner::check( is_file( $render_path ), 'the file really was produced, unlike the other probe', $render_path );
+
+// The browser must get it from the web server, with no help from the plugin.
+$render_fetch = sfir_http( sfir_test_url( $render_probe ) );
+
+SFIR_TestRunner::equals( 200, $render_fetch['status'], 'the browser gets the produced copy' );
+SFIR_TestRunner::check(
+	0 === strpos( (string) ( isset( $render_fetch['headers']['content-type'] ) ? $render_fetch['headers']['content-type'] : '' ), 'image/' ),
+	'it answers with an image'
+);
+SFIR_TestRunner::check(
+	! isset( $render_fetch['headers']['x-sfir'] ),
+	'the web server answered it, not the plugin — which is what this check proves'
+);
+
+// Two renders must not reuse one file, or a stale copy could pass the check.
+$first  = SFIR_Diagnostics::get_render_probe_url();
+$second = SFIR_Diagnostics::get_render_probe_url();
+
+SFIR_TestRunner::check( $first !== $second, 'each render asks for a different size', $first . ' vs ' . $second );
+SFIR_TestRunner::check(
+	SFIR_Diagnostics::get_render_probe_url() !== SFIR_Diagnostics::get_probe_url(),
+	'the two probes never ask for the same file, or one would answer for the other'
+);
+
+// The two checks are stored, reported and reset independently.
+SFIR_Diagnostics::reset();
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION, SFIR_Diagnostics::RENDER_OPTION );
+
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_render_confirmed_at(), 'the render answer starts unknown' );
+
+SFIR_Diagnostics::confirm_render();
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION, SFIR_Diagnostics::RENDER_OPTION );
+
+SFIR_TestRunner::check( SFIR_Diagnostics::get_render_confirmed_at() > 0, 'the render answer can be recorded' );
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), 'recording it leaves the request answer alone' );
+
+// This is the situation on a server without the nginx rule: one works, the
+// other does not, and the screen has to say so without crying fault.
+$split = sfir_admin_request( $check_url );
+
+SFIR_TestRunner::check( false !== strpos( $split['body'], 'is-working" data-check="render"' ), 'the render row is marked as working' );
+SFIR_TestRunner::check( false !== strpos( $split['body'], 'is-unknown" data-check="request"' ), 'the request row stays unanswered' );
+SFIR_TestRunner::check(
+	false !== strpos( $split['body'], 'That is not a fault' ),
+	'the verdict explains that this server is simply of the other kind'
+);
+SFIR_TestRunner::check(
+	empty( sfir_admin_settings( $split['body'] )['renderUrl'] ),
+	'no render probe is handed out once that one is confirmed'
+);
+SFIR_TestRunner::check(
+	! empty( sfir_admin_settings( $split['body'] )['probeUrl'] ),
+	'the unanswered check is still being retried'
+);
+
+// The confirmation endpoint keeps the two apart.
+SFIR_Diagnostics::reset();
+
+$check_page  = sfir_admin_request( $check_url );
+$ajax_nonce  = sfir_admin_settings( $check_page['body'] )['nonce'];
+$ajax_target = $base_url . '/wp-admin/admin-ajax.php';
+
+sfir_admin_request(
+	$ajax_target,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => SFIR_Diagnostics::AJAX_ACTION,
+				'_wpnonce' => $ajax_nonce,
+				'which'    => SFIR_Diagnostics::CHECK_RENDER,
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION, SFIR_Diagnostics::RENDER_OPTION );
+
+SFIR_TestRunner::check( SFIR_Diagnostics::get_render_confirmed_at() > 0, 'reporting "render" records the render answer' );
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), 'and only that one' );
+
+$unknown_check = sfir_admin_request(
+	$ajax_target,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => SFIR_Diagnostics::AJAX_ACTION,
+				'_wpnonce' => $ajax_nonce,
+				'which'    => 'something-else',
+			)
+		),
+	)
+);
+
+SFIR_TestRunner::equals( 400, $unknown_check['status'], 'an unknown check name is refused' );
+
+// "Check again" has to clear both, or the screen would keep half an answer.
+SFIR_Diagnostics::confirm( true );
+SFIR_Diagnostics::confirm_render();
+
+$reset_page  = sfir_admin_request( $check_url );
+$reset_nonce = sfir_form_nonce( $reset_page['body'], 'sfir_recheck' );
+
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => 'sfir_recheck',
+				'_wpnonce' => $reset_nonce,
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION, SFIR_Diagnostics::RENDER_OPTION );
+
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_confirmed_at(), 'checking again clears the request answer' );
+SFIR_TestRunner::equals( 0, SFIR_Diagnostics::get_render_confirmed_at(), 'checking again clears the render answer too' );
+
+// Put a confirmation back, which is the state the next group starts from.
+SFIR_Diagnostics::confirm( true );
 
 SFIR_TestRunner::group( 'self-check: reset' );
 

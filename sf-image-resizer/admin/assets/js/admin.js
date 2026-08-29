@@ -21,35 +21,46 @@
 	}
 
 	/**
-	 * Replaces the check block with the success message.
+	 * Marks one row of the configuration check as working.
+	 *
+	 * @param {string} which Name of the check that answered.
 	 */
-	function showSuccess() {
-		var container = document.getElementById( 'sfir-check' );
+	function showWorking( which ) {
+		var row = document.querySelector( '.sfir-check-row[data-check="' + which + '"]' );
 
-		if ( ! container ) {
+		if ( ! row ) {
 			return;
 		}
 
-		var notice = document.createElement( 'div' );
-		notice.className = 'notice notice-success inline sfir-check';
+		row.classList.remove( 'is-unknown' );
+		row.classList.add( 'is-working' );
 
-		var paragraph = document.createElement( 'p' );
+		var mark = row.querySelector( '.sfir-check-mark' );
 
-		var title = document.createElement( 'strong' );
-		title.textContent = settings.successTitle || '';
-		paragraph.appendChild( title );
-		paragraph.appendChild( document.createTextNode( ' ' + ( settings.successText || '' ) ) );
+		if ( mark ) {
+			mark.textContent = '\u2713';
+		}
 
-		notice.appendChild( paragraph );
+		var state = row.querySelector( '.sfir-check-state' );
 
-		container.innerHTML = '';
-		container.appendChild( notice );
+		if ( state ) {
+			state.textContent =
+				( settings.workingLabel || '' ) + ' ' + ( settings.checkedNow || '' );
+		}
+
+		var verdict = document.querySelector( '.sfir-verdict' );
+
+		if ( verdict ) {
+			verdict.classList.add( 'sfir-hidden' );
+		}
 	}
 
 	/**
-	 * Tells the site that the browser could load a freshly generated image.
+	 * Tells the site which of the two checks the browser could complete.
+	 *
+	 * @param {string} which Name of the check that answered.
 	 */
-	function reportSuccess() {
+	function reportSuccess( which ) {
 		if ( ! settings.ajaxUrl || ! settings.nonce ) {
 			return;
 		}
@@ -57,6 +68,7 @@
 		var body = new FormData();
 		body.append( 'action', settings.ajaxAction );
 		body.append( '_wpnonce', settings.nonce );
+		body.append( 'which', which );
 
 		window
 			.fetch( settings.ajaxUrl, {
@@ -66,35 +78,49 @@
 			} )
 			.then( function ( response ) {
 				if ( response.ok ) {
-					showSuccess();
+					showWorking( which );
 				}
 			} )
 			.catch( function () {
-				// Nothing to do: the page keeps its "not confirmed" state.
+				// Nothing to do: the row keeps its "not confirmed" state.
 			} );
 	}
 
 	/**
-	 * Fetches a signed cache URL that does not exist yet, exactly the way a
-	 * visitor's browser would. A server side request would prove nothing.
+	 * Loads one probe URL exactly the way a visitor's browser would. A server
+	 * side request would prove nothing about what a browser experiences.
+	 *
+	 * @param {string} url   URL to load.
+	 * @param {string} which Name of the check this URL stands for.
 	 */
-	function runCheck() {
-		if ( ! settings.probeUrl || ! window.fetch ) {
+	function runProbe( url, which ) {
+		if ( ! url || ! window.fetch ) {
 			return;
 		}
 
 		window
-			.fetch( settings.probeUrl, { cache: 'no-store', credentials: 'omit' } )
+			.fetch( url, { cache: 'no-store', credentials: 'omit' } )
 			.then( function ( response ) {
 				var type = response.headers.get( 'content-type' ) || '';
 
 				if ( response.ok && 0 === type.indexOf( 'image/' ) ) {
-					reportSuccess();
+					reportSuccess( which );
 				}
 			} )
 			.catch( function () {
 				// Leaves the honest "not confirmed" state in place.
 			} );
+	}
+
+	/**
+	 * Runs both halves of the configuration check.
+	 *
+	 * They are independent: a server can support one and not the other, and
+	 * that is exactly what the screen wants to report.
+	 */
+	function runCheck() {
+		runProbe( settings.renderUrl, settings.checkRender || 'render' );
+		runProbe( settings.probeUrl, settings.checkRequest || 'request' );
 	}
 
 	/**

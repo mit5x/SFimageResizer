@@ -74,8 +74,8 @@ class SFIR_Generator {
 	public static function get_modes() {
 		return array(
 			self::MODE_AUTO   => __( 'Automatic', 'sf-image-resizer' ),
-			self::MODE_ALWAYS => __( 'Always, while the page is rendered', 'sf-image-resizer' ),
-			self::MODE_NEVER  => __( 'Never: only when a browser asks for the file', 'sf-image-resizer' ),
+			self::MODE_ALWAYS => __( 'Generate every size up front, while the page is built', 'sf-image-resizer' ),
+			self::MODE_NEVER  => __( 'Generate each size when a visitor\'s browser asks for it', 'sf-image-resizer' ),
 		);
 	}
 

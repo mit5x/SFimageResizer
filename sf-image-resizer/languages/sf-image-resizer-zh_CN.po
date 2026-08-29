@@ -16,7 +16,7 @@ msgstr ""
 #: sf-image-resizer.php
 #: admin/class-sfir-admin.php:67
 #: admin/class-sfir-admin.php:68
-#: admin/class-sfir-admin.php:353
+#: admin/class-sfir-admin.php:366
 msgid "SF Image resizer"
 msgstr ""
 
@@ -36,427 +36,458 @@ msgstr "面向主题开发者的按需图片缩放、裁剪与 WebP/JPG 转换�
 msgid "saytformat"
 msgstr ""
 
-#: admin/class-sfir-admin.php:108
+#: admin/class-sfir-admin.php:118
 msgid "Delete every cached image? They will be regenerated on demand."
 msgstr "删除所有缓存图片？它们会在需要时重新生成。"
 
-#: admin/class-sfir-admin.php:109
+#: admin/class-sfir-admin.php:119
 msgid "Clear the error log?"
 msgstr "清空错误日志？"
 
-#: admin/class-sfir-admin.php:114
-#: admin/class-sfir-admin.php:501
-msgid "Pretty URLs are working."
-msgstr "简洁网址工作正常。"
+#: admin/class-sfir-admin.php:127
+msgid "Works on this server."
+msgstr "在此服务器上有效。"
 
-#: admin/class-sfir-admin.php:115
+#: admin/class-sfir-admin.php:128
 msgid "Checked from your browser just now."
 msgstr "刚刚从你的浏览器完成检测。"
 
-#: admin/class-sfir-admin.php:116
+#: admin/class-sfir-admin.php:129
 msgid "Copied"
 msgstr "已复制"
 
-#: admin/class-sfir-admin.php:117
+#: admin/class-sfir-admin.php:130
 msgid "Press Ctrl+C to copy"
 msgstr "按 Ctrl+C 复制"
 
 #. translators: %d: number of deleted files.
-#: admin/class-sfir-admin.php:140
+#: admin/class-sfir-admin.php:153
 #, php-format
 msgid "%d cached file deleted."
 msgid_plural "%d cached files deleted."
 msgstr[0] "已删除 %d 个缓存文件。"
 
-#: admin/class-sfir-admin.php:161
+#: admin/class-sfir-admin.php:174
 msgid "The error log has been cleared."
 msgstr "错误日志已清空。"
 
-#: admin/class-sfir-admin.php:162
+#: admin/class-sfir-admin.php:175
 msgid "The error log could not be cleared."
 msgstr "无法清空错误日志。"
 
-#: admin/class-sfir-admin.php:179
+#: admin/class-sfir-admin.php:192
 msgid "The check was reset and will run again from your browser."
 msgstr "检测已重置，将再次从你的浏览器运行。"
 
-#: admin/class-sfir-admin.php:219
+#: admin/class-sfir-admin.php:232
 msgid "The generation mode has been saved."
 msgstr "生成模式已保存。"
 
-#: admin/class-sfir-admin.php:232
-#: admin/class-sfir-admin.php:343
-#: includes/class-sfir-diagnostics.php:131
+#: admin/class-sfir-admin.php:245
+#: admin/class-sfir-admin.php:356
+#: includes/class-sfir-diagnostics.php:269
 msgid "You are not allowed to do this."
 msgstr "你没有执行此操作的权限。"
 
-#: admin/class-sfir-admin.php:300
-#: admin/class-sfir-admin.php:423
+#: admin/class-sfir-admin.php:313
+#: admin/class-sfir-admin.php:436
 msgid "Cache"
 msgstr "缓存"
 
-#: admin/class-sfir-admin.php:301
+#: admin/class-sfir-admin.php:314
 msgid "Check and log"
 msgstr "检测与日志"
 
-#: admin/class-sfir-admin.php:302
-#: admin/class-sfir-admin.php:648
+#: admin/class-sfir-admin.php:315
+#: admin/class-sfir-admin.php:722
 msgid "Documentation"
 msgstr "使用文档"
 
-#: admin/class-sfir-admin.php:397
+#: admin/class-sfir-admin.php:410
 msgid "Language of this screen"
 msgstr "本页面语言"
 
-#: admin/class-sfir-admin.php:405
+#: admin/class-sfir-admin.php:418
 msgid "Apply"
 msgstr "应用"
 
-#: admin/class-sfir-admin.php:427
+#: admin/class-sfir-admin.php:440
 msgid "Cached files"
 msgstr "缓存文件数"
 
-#: admin/class-sfir-admin.php:432
-#: admin/class-sfir-admin.php:444
+#: admin/class-sfir-admin.php:445
+#: admin/class-sfir-admin.php:457
 msgid "(approximate)"
 msgstr "（约）"
 
-#: admin/class-sfir-admin.php:438
+#: admin/class-sfir-admin.php:451
 msgid "Total size"
 msgstr "总大小"
 
 #. translators: %s: cache size in megabytes.
-#: admin/class-sfir-admin.php:442
+#: admin/class-sfir-admin.php:455
 #, php-format
 msgid "%s MB"
 msgstr "%s MB"
 
-#: admin/class-sfir-admin.php:450
+#: admin/class-sfir-admin.php:463
 msgid "Cache directory"
 msgstr "缓存目录"
 
-#: admin/class-sfir-admin.php:454
+#: admin/class-sfir-admin.php:467
 msgid "WebP output"
 msgstr "WebP 输出"
 
-#: admin/class-sfir-admin.php:458
+#: admin/class-sfir-admin.php:471
 msgid "Supported by this server."
 msgstr "此服务器支持。"
 
-#: admin/class-sfir-admin.php:459
+#: admin/class-sfir-admin.php:472
 msgid "Not available: this GD build has no WebP support, JPG is produced instead."
 msgstr "不可用：当前 GD 版本不支持 WebP，将改为生成 JPG。"
 
-#: admin/class-sfir-admin.php:466
+#: admin/class-sfir-admin.php:479
 msgid "Deleting the cache is safe: every copy is created again the first time a browser asks for it."
 msgstr "清空缓存是安全的：每个副本会在浏览器首次请求时重新生成。"
 
-#: admin/class-sfir-admin.php:471
+#: admin/class-sfir-admin.php:484
 msgid "Clear image cache"
 msgstr "清空图片缓存"
 
-#: admin/class-sfir-admin.php:493
+#: admin/class-sfir-admin.php:506
 msgid "Configuration check"
 msgstr "配置检测"
 
-#: admin/class-sfir-admin.php:495
-msgid "Image URLs point straight at the cache file. While that file does not exist yet, the web server has to hand the request to WordPress so the plugin can create it."
-msgstr "图片网址直接指向缓存文件。在该文件尚不存在时，Web 服务器必须把请求交给 WordPress，插件才能创建它。"
+#: admin/class-sfir-admin.php:508
+msgid "There are two ways for a resized copy to come into being, and a server can support one without the other. Each is checked on its own, from your own browser."
+msgstr "生成缩放副本有两种途径，服务器可能只支持其中一种。每一种都会单独检测，检测从你自己的浏览器发起。"
 
-#. translators: %s: date and time of the last confirmation.
-#: admin/class-sfir-admin.php:505
-#, php-format
-msgid "Confirmed by a real request on %s."
-msgstr "已由真实请求于 %s 确认。"
+#: admin/class-sfir-admin.php:515
+msgid "Generating while the page is rendered"
+msgstr "在渲染页面时生成"
 
-#: admin/class-sfir-admin.php:512
-msgid "Not confirmed automatically yet."
-msgstr "尚未自动确认。"
+#: admin/class-sfir-admin.php:516
+msgid "The plugin creates the file itself, then the web server hands it over like any other file. Nothing else is required, so this works almost everywhere."
+msgstr "插件自己创建文件，之后 Web 服务器像对待其他文件一样把它发出去。不需要别的条件，因此这种方式几乎在任何环境下都有效。"
 
-#: admin/class-sfir-admin.php:513
-msgid "This is often caused by the hosting bot protection and does not mean anything is broken. Check it yourself: open the URL of any size that has not been generated yet in your browser. If the image appears, everything works."
-msgstr "这通常是主机的反机器人防护造成的，并不表示出了故障。你可以自己验证：在浏览器中打开任意一个尚未生成的尺寸的网址，如果图片正常显示，就说明一切正常。"
+#: admin/class-sfir-admin.php:522
+msgid "Generating on request from the browser"
+msgstr "在浏览器请求时生成"
 
-#: admin/class-sfir-admin.php:517
-msgid "If images really are not being created"
-msgstr "如果图片确实没有被创建"
+#: admin/class-sfir-admin.php:523
+msgid "A browser asks for a file that does not exist yet, and the web server has to pass that request to WordPress instead of answering 404. Apache does it through the .htaccess this plugin writes; nginx needs a rule in its configuration."
+msgstr "浏览器请求一个尚不存在的文件，Web 服务器必须把该请求转交给 WordPress，而不是直接返回 404。Apache 通过本插件写入的 .htaccess 做到这一点；nginx 则需要在配置中加一条规则。"
 
-#: admin/class-sfir-admin.php:518
-msgid "On nginx, add this to the server configuration and reload it. Your host can apply it for you:"
-msgstr "在 nginx 上，把下面的内容加入服务器配置并重新加载。主机商可以代为处理："
-
-#: admin/class-sfir-admin.php:520
-msgid "On Apache, make sure .htaccess files are honoured (AllowOverride All) for the uploads directory."
-msgstr "在 Apache 上，请确认 uploads 目录的 .htaccess 文件生效（AllowOverride All）。"
-
-#: admin/class-sfir-admin.php:528
+#: admin/class-sfir-admin.php:534
 msgid "Check again"
 msgstr "重新检测"
 
-#: admin/class-sfir-admin.php:533
+#: admin/class-sfir-admin.php:539
 msgid "Error log"
 msgstr "错误日志"
 
-#: admin/class-sfir-admin.php:535
+#: admin/class-sfir-admin.php:541
 msgid "The 50 first lines of the log file are shown below."
 msgstr "下面显示日志文件的前 50 行。"
 
-#: admin/class-sfir-admin.php:538
+#: admin/class-sfir-admin.php:544
 msgid "The log is empty."
 msgstr "日志为空。"
 
-#: admin/class-sfir-admin.php:543
+#: admin/class-sfir-admin.php:549
 msgid "Clear log"
 msgstr "清空日志"
 
-#: admin/class-sfir-admin.php:558
+#. translators: %s: date and time of the last confirmation.
+#: admin/class-sfir-admin.php:576
+#, php-format
+msgid "Works on this server. Confirmed on %s."
+msgstr "在此服务器上有效。已于 %s 确认。"
+
+#: admin/class-sfir-admin.php:580
+msgid "Not confirmed on this server."
+msgstr "在此服务器上尚未确认。"
+
+#: admin/class-sfir-admin.php:600
+msgid "Both ways work here, so any mode below is safe. Generating on request is the lighter one."
+msgstr "两种途径在这里都有效，所以下面任何一种模式都可以放心使用。按请求生成更为轻量。"
+
+#: admin/class-sfir-admin.php:604
+msgid "This server supports generating while the page is rendered, but not on request. That is not a fault, and your images are being produced normally — it is exactly the case the first mode below exists for. Leave the mode on \"Automatic\" or set it to the first one."
+msgstr "此服务器支持在渲染时生成，但不支持按请求生成。这并不是故障，你的图片正常生成中——这正是下面第一种模式存在的意义。保持“自动”，或者直接选第一种。"
+
+#: admin/class-sfir-admin.php:608
+msgid "Generating on request works here, which is the lighter of the two. The other check has not answered yet."
+msgstr "按请求生成在这里有效，这是两者中更轻量的一种。另一项检测尚未给出结果。"
+
+#: admin/class-sfir-admin.php:611
+msgid "Neither check has answered yet. They run in your browser when this tab is open, so give the page a moment, and make sure no ad blocker is stopping requests to your own site."
+msgstr "两项检测都还没有结果。它们在这个标签页打开时于你的浏览器中运行，请稍等片刻，并确认没有广告拦截器阻止了对你自己网站的请求。"
+
+#: admin/class-sfir-admin.php:624
 msgid "When copies are produced"
 msgstr "何时生成副本"
 
-#: admin/class-sfir-admin.php:560
+#: admin/class-sfir-admin.php:626
 msgid "If your host cannot be configured to hand a missing cache file to WordPress, let the plugin produce the copies while the page is rendered. The first visit to each page is then slower, and every visit after that is served straight from disk."
 msgstr "如果无法把主机配置成将缺失的缓存文件交给 WordPress 处理，可以让插件在渲染页面时就生成副本。这样每个页面的首次访问会慢一些，之后的访问都直接从磁盘读取。"
 
-#: admin/class-sfir-admin.php:582
+#: admin/class-sfir-admin.php:648
 msgid "Right now: copies are produced while the page is rendered."
 msgstr "当前：副本在渲染页面时生成。"
 
-#: admin/class-sfir-admin.php:583
+#: admin/class-sfir-admin.php:649
 msgid "Right now: copies are produced the first time a browser asks for them."
 msgstr "当前：副本在浏览器首次请求时生成。"
 
-#: admin/class-sfir-admin.php:589
+#: admin/class-sfir-admin.php:655
 msgid "Save"
 msgstr "保存"
 
-#: admin/class-sfir-admin.php:602
-msgid "Pick this when the check above keeps failing and the server configuration cannot be changed. Works everywhere, including nginx without the rewrite rule."
-msgstr "当上面的检测始终不通过，而又无法修改服务器配置时，请选择此项。它在任何环境下都有效，包括没有重写规则的 nginx。"
+#: admin/class-sfir-admin.php:659
+msgid "Making the on-request mode work on nginx"
+msgstr "让按请求生成的模式在 nginx 上工作"
 
-#: admin/class-sfir-admin.php:606
-msgid "The lightest option for page rendering, but it needs the web server to pass requests for missing files to WordPress."
-msgstr "对页面渲染负担最小的选项，但它要求 Web 服务器把对缺失文件的请求转交给 WordPress。"
+#: admin/class-sfir-admin.php:660
+msgid "nginx answers a request for a file that does not exist with 404 and never involves WordPress, which is why the on-request mode cannot work until it is told otherwise. Add this to the server configuration of this site and reload nginx. Your host can apply it for you; it affects one directory and nothing else:"
+msgstr "nginx 对不存在的文件直接返回 404，根本不会经过 WordPress——这正是按请求生成的模式在未作配置前无法工作的原因。把下面的内容加入本站点的服务器配置并重新加载 nginx。主机商可以代为处理：它只影响一个目录，不影响其他任何东西："
 
-#: admin/class-sfir-admin.php:609
-msgid "Produce copies while rendering until the check above confirms that requests for missing files reach the plugin, then stop. Recommended."
-msgstr "在渲染时生成副本，直到上面的检测确认对缺失文件的请求能到达插件为止，之后停止。推荐。"
+#: admin/class-sfir-admin.php:662
+msgid "The ^~ matters: without it the rule loses to the block that serves static images, which is present in almost every configuration. Once nginx is reloaded, press \"Check again\" above."
+msgstr "^~ 很关键：没有它，这条规则会输给负责提供静态图片的配置块，而几乎每份配置里都有那个块。重新加载 nginx 后，请点击上方的“重新检测”。"
 
-#: admin/class-sfir-admin.php:650
+#: admin/class-sfir-admin.php:663
+msgid "On Apache nothing needs adding, but .htaccess files have to be honoured (AllowOverride All) for the uploads directory."
+msgstr "在 Apache 上无需添加任何内容，但 uploads 目录的 .htaccess 文件必须生效（AllowOverride All）。"
+
+#: admin/class-sfir-admin.php:676
+msgid "Every size of every image on the page is created as the page is built, even the sizes no visitor has needed yet. Nine images at six widths is 54 copies, so the first visit creates part of them and the following visits create the rest — deliberately, so that a page full of new sizes cannot run into the PHP timeout and hold the site up. Slower on the first visits, and it works on every server."
+msgstr "页面上每张图片的每个尺寸都会在页面构建时创建，即使还没有访客需要这些尺寸。九张图片乘六种宽度就是 54 个副本，因此首次访问会创建其中一部分，之后的访问创建其余部分——这是刻意为之：一个包含大量新尺寸的页面不应撞上 PHP 超时而拖垮网站。最初几次访问较慢，但它在任何服务器上都能工作。"
+
+#: admin/class-sfir-admin.php:680
+msgid "Nothing is made in advance. When a visitor arrives whose screen needs a particular size, that visitor's browser asks for it, the plugin creates exactly that one copy and caches it on disk, and it is never made again. Only the sizes really being looked at are ever created, and no page render is slowed down. This is the better of the two — but it needs the web server to pass a request for a missing file to WordPress, and not every server can be made to do that. The mode above exists to cover the ones that cannot."
+msgstr "不预先创建任何东西。当某位访客到来、其屏幕需要某个特定尺寸时，正是该访客的浏览器发出请求，插件只创建这一个副本并缓存到磁盘，之后不会再次创建。只会生成真正被浏览的尺寸，也不会拖慢任何页面渲染。这是两者中更合理的一种——但它要求 Web 服务器把对缺失文件的请求转交给 WordPress，而并非每台服务器都能这样配置。上面那种模式正是为无法做到这一点的服务器准备的。"
+
+#: admin/class-sfir-admin.php:683
+msgid "Uses whichever of the two below works on this server. It starts by generating up front, and switches to generating on request as soon as the check above confirms that requests for missing files reach the plugin. Leave it on this unless you have a reason not to."
+msgstr "自动采用下面两者中在此服务器上有效的那一种。它先采用预先生成，一旦上面的检测确认对缺失文件的请求能到达插件，就切换为按请求生成。若无特别理由，请保持此项。"
+
+#: admin/class-sfir-admin.php:724
 msgid "Call these functions from your theme templates. They never throw and never break a page: on error they return an SVG placeholder and write one line to the log."
 msgstr "在主题模板中调用这些函数。它们从不抛出异常，也不会让页面出错：出错时返回一个 SVG 占位图，并向日志写入一行记录。"
 
-#: admin/class-sfir-admin.php:652
+#: admin/class-sfir-admin.php:726
 msgid "Functions"
 msgstr "函数"
 
-#: admin/class-sfir-admin.php:656
+#: admin/class-sfir-admin.php:730
 msgid "Function"
 msgstr "函数"
 
-#: admin/class-sfir-admin.php:657
-#: admin/class-sfir-admin.php:694
+#: admin/class-sfir-admin.php:731
+#: admin/class-sfir-admin.php:768
 msgid "Description"
 msgstr "说明"
 
-#: admin/class-sfir-admin.php:663
+#: admin/class-sfir-admin.php:737
 msgid "Returns the URL of the resized copy. Output it with esc_url()."
 msgstr "返回缩放副本的网址。请用 esc_url() 输出。"
 
-#: admin/class-sfir-admin.php:667
+#: admin/class-sfir-admin.php:741
 msgid "Returns the width the copy will have, calculated without generating it."
 msgstr "返回副本将具有的宽度，无需生成文件即可算出。"
 
-#: admin/class-sfir-admin.php:671
+#: admin/class-sfir-admin.php:745
 msgid "Returns the matching height."
 msgstr "返回对应的高度。"
 
-#: admin/class-sfir-admin.php:675
+#: admin/class-sfir-admin.php:749
 msgid "Returns a complete srcset for 320, 640, 960, 1280, 1920 and 2560 pixels. Output it with esc_attr()."
 msgstr "返回覆盖 320、640、960、1280、1920 和 2560 像素的完整 srcset。请用 esc_attr() 输出。"
 
-#: admin/class-sfir-admin.php:679
+#: admin/class-sfir-admin.php:753
 msgid "Returns a complete img tag with src, width, height, loading=\"lazy\" and decoding=\"async\". Attributes in $attrs override the defaults."
 msgstr "返回带有 src、width、height、loading=\"lazy\" 和 decoding=\"async\" 的完整 img 标签。$attrs 中的属性会覆盖默认值。"
 
-#: admin/class-sfir-admin.php:684
+#: admin/class-sfir-admin.php:758
 msgid "Sources"
 msgstr "图片来源"
 
-#: admin/class-sfir-admin.php:685
+#: admin/class-sfir-admin.php:759
 msgid "$source accepts a URL belonging to this site, an attachment ID, or an ACF image array. Anything else, including URLs on other hosts, produces a placeholder."
 msgstr "$source 接受本站的网址、附件 ID 或 ACF 图片数组。其他任何内容（包括其他域名下的网址）都会得到占位图。"
 
-#: admin/class-sfir-admin.php:687
+#: admin/class-sfir-admin.php:761
 msgid "Parameters"
 msgstr "参数"
 
-#: admin/class-sfir-admin.php:691
+#: admin/class-sfir-admin.php:765
 msgid "Parameter"
 msgstr "参数"
 
-#: admin/class-sfir-admin.php:692
+#: admin/class-sfir-admin.php:766
 msgid "Values"
 msgstr "取值"
 
-#: admin/class-sfir-admin.php:693
+#: admin/class-sfir-admin.php:767
 msgid "Default"
 msgstr "默认值"
 
-#: admin/class-sfir-admin.php:702
+#: admin/class-sfir-admin.php:776
 msgid "Maximum width in pixels. 0 means \"not constrained\"."
 msgstr "最大宽度（像素）。0 表示“不限制”。"
 
-#: admin/class-sfir-admin.php:708
+#: admin/class-sfir-admin.php:782
 msgid "Maximum height in pixels. 0 means \"not constrained\"."
 msgstr "最大高度（像素）。0 表示“不限制”。"
 
-#: admin/class-sfir-admin.php:714
+#: admin/class-sfir-admin.php:788
 msgid "Output format."
 msgstr "输出格式。"
 
-#: admin/class-sfir-admin.php:720
+#: admin/class-sfir-admin.php:794
 msgid "Output quality."
 msgstr "输出质量。"
 
-#: admin/class-sfir-admin.php:724
+#: admin/class-sfir-admin.php:798
 msgid "3 or 6 hex digits, without \"#\""
 msgstr "3 位或 6 位十六进制数字，不含“#”"
 
-#: admin/class-sfir-admin.php:725
+#: admin/class-sfir-admin.php:799
 msgid "transparent, FFFFFF for JPG"
 msgstr "透明，JPG 为 FFFFFF"
 
-#: admin/class-sfir-admin.php:726
+#: admin/class-sfir-admin.php:800
 msgid "Background colour used to fill transparent areas."
 msgstr "用于填充透明区域的背景色。"
 
-#: admin/class-sfir-admin.php:732
+#: admin/class-sfir-admin.php:806
 msgid "Crop to exactly w x h, centred. Ignored unless both w and h are set."
 msgstr "居中裁剪到正好 w x h。若未同时设置 w 和 h 则忽略。"
 
-#: admin/class-sfir-admin.php:737
+#: admin/class-sfir-admin.php:811
 msgid "Images are never enlarged. If the source is smaller than the request, the result keeps the source size; with crop=1 it is cropped to the largest region matching the requested ratio."
 msgstr "图片永远不会被放大。如果原图小于所请求的尺寸，结果保持原图尺寸；使用 crop=1 时会按所请求的比例裁剪出最大的区域。"
 
-#: admin/class-sfir-admin.php:739
+#: admin/class-sfir-admin.php:813
 msgid "Examples"
 msgstr "示例"
 
-#: admin/class-sfir-admin.php:744
+#: admin/class-sfir-admin.php:818
 msgid "1. A plain image URL:"
 msgstr "1. 普通的图片网址："
 
-#: admin/class-sfir-admin.php:751
+#: admin/class-sfir-admin.php:825
 msgid "2. An attachment ID, cropped to a fixed box:"
 msgstr "2. 附件 ID，裁剪为固定尺寸："
 
-#: admin/class-sfir-admin.php:755
+#: admin/class-sfir-admin.php:829
 msgid "3. An ACF image field, flattened onto a white background as JPG:"
 msgstr "3. ACF 图片字段，合成到白色背景并输出为 JPG："
 
-#: admin/class-sfir-admin.php:784
+#: admin/class-sfir-admin.php:858
 msgid "4. A universal responsive srcset"
 msgstr "4. 通用的响应式 srcset"
 
-#: admin/class-sfir-admin.php:785
+#: admin/class-sfir-admin.php:859
 msgid "This is the recommended way to output a responsive image, and it covers almost every case. sf_img_srcset() builds the whole srcset for you at 320, 640, 960, 1280, 1920 and 2560 pixels, so nothing has to be added to your theme functions.php. Everything else in the tag stays yours to write."
 msgstr "这是输出响应式图片的推荐做法，几乎适用于所有场景。sf_img_srcset() 会为你生成覆盖 320、640、960、1280、1920 和 2560 像素的完整 srcset，无需在主题的 functions.php 中添加任何代码。标签中的其余部分仍由你自己编写。"
 
-#: admin/class-sfir-admin.php:787
+#: admin/class-sfir-admin.php:861
 msgid "The variable may be called anything: it is just the first argument. Widths the source is too small for are skipped, and every candidate is labelled with the width the file really has, so the browser is never told that a 1600 pixel copy is 2560 pixels wide."
 msgstr "变量叫什么名字都可以，它只是第一个参数。原图不够大的宽度会被跳过，每个候选项都标注文件的真实宽度，因此浏览器不会被告知 1600 像素的副本有 2560 像素宽。"
 
-#: admin/class-sfir-admin.php:788
+#: admin/class-sfir-admin.php:862
 msgid "sizes=\"auto\" lets the browser measure the image itself, and it requires loading=\"lazy\". For an image above the fold, drop the lazy loading and write sizes yourself, for example sizes=\"100vw\"."
 msgstr "sizes=\"auto\" 让浏览器自行测量图片，它要求同时使用 loading=\"lazy\"。对于首屏图片，请去掉懒加载并自行编写 sizes，例如 sizes=\"100vw\"。"
 
-#: admin/class-sfir-admin.php:790
+#: admin/class-sfir-admin.php:864
 msgid "5. A custom responsive srcset"
 msgstr "5. 自定义的响应式 srcset"
 
-#: admin/class-sfir-admin.php:791
+#: admin/class-sfir-admin.php:865
 msgid "Use this variant only when you know exactly what size the image is rendered at in each place of your site, and want to control the widths and the sizes attribute yourself. In every other case example 4 is simpler and harder to get wrong."
 msgstr "只有当你确切知道图片在网站每个位置的渲染尺寸，并希望自己掌控宽度列表和 sizes 属性时，才使用这种方式。其他情况下，示例 4 更简单，也更不容易出错。"
 
-#: admin/class-sfir-admin.php:794
+#: admin/class-sfir-admin.php:868
 msgid "Error codes"
 msgstr "错误代码"
 
-#: admin/class-sfir-admin.php:798
+#: admin/class-sfir-admin.php:872
 msgid "Code"
 msgstr "代码"
 
-#: admin/class-sfir-admin.php:799
+#: admin/class-sfir-admin.php:873
 msgid "Meaning"
 msgstr "含义"
 
-#: admin/class-sfir-admin.php:812
+#: admin/class-sfir-admin.php:886
 msgid "How the URL is built"
 msgstr "网址是如何构成的"
 
-#: admin/class-sfir-admin.php:813
+#: admin/class-sfir-admin.php:887
 msgid "Cached copies mirror the directory tree of their source inside the cache directory, and the file name carries the parameters plus a short signature:"
 msgstr "缓存副本会在缓存目录中镜像原图的目录结构，文件名中包含参数以及一段简短签名："
 
-#: admin/class-sfir-admin.php:817
+#: admin/class-sfir-admin.php:891
 msgid "The bg part appears only when a background colour was requested. The hash is six hexadecimal characters of an HMAC over the source path and the parameters; it lets the plugin create only the sizes your templates actually ask for, and cannot be guessed to fill the disk."
 msgstr "只有指定了背景色时才会出现 bg 部分。哈希是对原图路径和参数计算 HMAC 后取的六位十六进制字符；它保证只生成模板真正请求的尺寸，且无法被猜测出来占满磁盘。"
 
-#: admin/class-sfir-admin.php:820
+#: admin/class-sfir-admin.php:894
 msgid "Notes"
 msgstr "说明"
 
-#: admin/class-sfir-admin.php:822
+#: admin/class-sfir-admin.php:896
 msgid "WebP fallback: if this PHP build has no WebP support, JPG is produced instead and the cached file gets a .jpg extension. A single notice is written to the log."
 msgstr "WebP 回退：如果当前 PHP 不支持 WebP，则改为生成 JPG，缓存文件使用 .jpg 扩展名，并向日志写入一条提示。"
 
-#: admin/class-sfir-admin.php:823
+#: admin/class-sfir-admin.php:897
 msgid "Animated GIF: only the first frame is used, animation is not preserved."
 msgstr "动态 GIF：只使用第一帧，动画不会被保留。"
 
-#: admin/class-sfir-admin.php:824
+#: admin/class-sfir-admin.php:898
 msgid "SVG files are not accepted as input."
 msgstr "不接受 SVG 文件作为来源。"
 
-#: admin/class-sfir-admin.php:825
+#: admin/class-sfir-admin.php:899
 msgid "Every call returns the same plain URL of the cached file, from the very first render. When that file does not exist yet, the request falls through to WordPress and the plugin generates it; afterwards the web server serves it as a static file and PHP is no longer involved."
 msgstr "从第一次渲染起，每次调用都返回同一个简洁的缓存文件网址。该文件尚不存在时，请求会落到 WordPress，由插件生成；之后 Web 服务器将其作为静态文件直接提供，不再经过 PHP。"
 
-#: admin/class-sfir-admin.php:826
+#: admin/class-sfir-admin.php:900
 msgid "On nginx, .htaccess files are ignored. Deny direct access to the logs directory in your server configuration."
 msgstr "nginx 会忽略 .htaccess 文件。请在服务器配置中禁止直接访问 logs 目录。"
 
-#: admin/class-sfir-admin.php:845
+#: admin/class-sfir-admin.php:919
 msgid "Reference for an AI assistant"
 msgstr "供 AI 助手使用的参考文档"
 
-#: admin/class-sfir-admin.php:846
+#: admin/class-sfir-admin.php:920
 msgid "The whole reference below is written for a language model. Copy it into Claude, ChatGPT or any other assistant together with your own template, and it will have everything it needs to output correct src and srcset markup with this plugin."
 msgstr "下面这份完整参考是写给语言模型的。把它连同你自己的模板一起复制给 Claude、ChatGPT 或其他助手，它就掌握了用本插件输出正确 src 与 srcset 标记所需的全部信息。"
 
-#: admin/class-sfir-admin.php:851
+#: admin/class-sfir-admin.php:925
 msgid "Copy"
 msgstr "复制"
 
-#: admin/class-sfir-admin.php:855
+#: admin/class-sfir-admin.php:929
 msgid "Download .md"
 msgstr "下载 .md"
 
-#: includes/class-sfir-diagnostics.php:141
-msgid "Pretty URLs are working — checked from your browser just now."
-msgstr "简洁网址工作正常——刚刚从你的浏览器完成检测。"
+#: includes/class-sfir-diagnostics.php:278
+msgid "Unknown check."
+msgstr "未知的检测项。"
 
 #: includes/class-sfir-generator.php:76
 msgid "Automatic"
 msgstr "自动"
 
 #: includes/class-sfir-generator.php:77
-msgid "Always, while the page is rendered"
-msgstr "始终在渲染页面时生成"
+msgid "Generate every size up front, while the page is built"
+msgstr "在构建页面时预先生成所有尺寸"
 
 #: includes/class-sfir-generator.php:78
-msgid "Never: only when a browser asks for the file"
-msgstr "从不：仅在浏览器请求该文件时生成"
+msgid "Generate each size when a visitor's browser asks for it"
+msgstr "在访客浏览器请求某个尺寸时再生成"
 
 #: includes/class-sfir-i18n.php:47
 msgid "Site language"

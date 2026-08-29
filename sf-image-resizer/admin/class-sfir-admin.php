@@ -98,8 +98,18 @@ class SFIR_Admin {
 			true
 		);
 
-		// The browser check only runs while nothing has confirmed pretty URLs yet.
-		$probe = SFIR_Diagnostics::get_confirmed_at() > 0 ? '' : SFIR_Diagnostics::get_probe_url();
+		// Each check is only run while its own answer is still unknown, and only
+		// on the tab that shows the results.
+		$on_check_tab = self::TAB_CHECK === self::get_current_tab();
+		$results      = SFIR_Diagnostics::get_results();
+
+		$request_probe = ( $on_check_tab && $results[ SFIR_Diagnostics::CHECK_REQUEST ] < 1 )
+			? SFIR_Diagnostics::get_probe_url()
+			: '';
+
+		$render_probe = ( $on_check_tab && $results[ SFIR_Diagnostics::CHECK_RENDER ] < 1 )
+			? SFIR_Diagnostics::get_render_probe_url()
+			: '';
 
 		wp_localize_script(
 			'sfir-admin',
@@ -107,12 +117,15 @@ class SFIR_Admin {
 			array(
 				'confirmCache' => __( 'Delete every cached image? They will be regenerated on demand.', 'sf-image-resizer' ),
 				'confirmLog'   => __( 'Clear the error log?', 'sf-image-resizer' ),
-				'probeUrl'     => $probe,
+				'probeUrl'     => $request_probe,
+				'renderUrl'    => $render_probe,
 				'ajaxUrl'      => admin_url( 'admin-ajax.php' ),
 				'ajaxAction'   => SFIR_Diagnostics::AJAX_ACTION,
 				'nonce'        => wp_create_nonce( SFIR_Diagnostics::AJAX_ACTION ),
-				'successTitle' => __( 'Pretty URLs are working.', 'sf-image-resizer' ),
-				'successText'  => __( 'Checked from your browser just now.', 'sf-image-resizer' ),
+				'checkRequest' => SFIR_Diagnostics::CHECK_REQUEST,
+				'checkRender'  => SFIR_Diagnostics::CHECK_RENDER,
+				'workingLabel' => __( 'Works on this server.', 'sf-image-resizer' ),
+				'checkedNow'   => __( 'Checked from your browser just now.', 'sf-image-resizer' ),
 				'copied'       => __( 'Copied', 'sf-image-resizer' ),
 				'copyFailed'   => __( 'Press Ctrl+C to copy', 'sf-image-resizer' ),
 			)
@@ -308,7 +321,7 @@ class SFIR_Admin {
 	 *
 	 * @return string
 	 */
-	protected static function get_current_tab() {
+	public static function get_current_tab() {
 		// Reading a tab name from the URL needs no nonce: it selects which part
 		// of a read-only screen to draw and changes nothing.
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
@@ -484,43 +497,36 @@ class SFIR_Admin {
 	 * @return void
 	 */
 	protected static function render_tab_check( $action ) {
-		$confirmed = SFIR_Diagnostics::get_confirmed_at();
-		$log       = SFIR_Logger::read( 50 );
+		$results = SFIR_Diagnostics::get_results();
+		$log     = SFIR_Logger::read( 50 );
 
 		// Clean up after any earlier browser check before starting a new one.
 		SFIR_Diagnostics::cleanup_probe_files();
 		?>
 		<h2><?php esc_html_e( 'Configuration check', 'sf-image-resizer' ); ?></h2>
 		<p class="description">
-			<?php esc_html_e( 'Image URLs point straight at the cache file. While that file does not exist yet, the web server has to hand the request to WordPress so the plugin can create it.', 'sf-image-resizer' ); ?>
+			<?php esc_html_e( 'There are two ways for a resized copy to come into being, and a server can support one without the other. Each is checked on its own, from your own browser.', 'sf-image-resizer' ); ?>
 		</p>
 
 		<div id="sfir-check">
-			<?php if ( $confirmed > 0 ) : ?>
-				<div class="notice notice-success inline sfir-check"><p>
-					<strong><?php esc_html_e( 'Pretty URLs are working.', 'sf-image-resizer' ); ?></strong>
-					<?php
-					printf(
-						/* translators: %s: date and time of the last confirmation. */
-						esc_html__( 'Confirmed by a real request on %s.', 'sf-image-resizer' ),
-						esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $confirmed ) )
-					);
-					?>
-				</p></div>
-			<?php else : ?>
-				<div class="notice notice-warning inline sfir-check">
-					<p><strong><?php esc_html_e( 'Not confirmed automatically yet.', 'sf-image-resizer' ); ?></strong></p>
-					<p><?php esc_html_e( 'This is often caused by the hosting bot protection and does not mean anything is broken. Check it yourself: open the URL of any size that has not been generated yet in your browser. If the image appears, everything works.', 'sf-image-resizer' ); ?></p>
-				</div>
+			<?php
+			self::render_check_row(
+				SFIR_Diagnostics::CHECK_RENDER,
+				__( 'Generating while the page is rendered', 'sf-image-resizer' ),
+				__( 'The plugin creates the file itself, then the web server hands it over like any other file. Nothing else is required, so this works almost everywhere.', 'sf-image-resizer' ),
+				$results[ SFIR_Diagnostics::CHECK_RENDER ]
+			);
 
-				<details class="sfir-hints">
-					<summary><?php esc_html_e( 'If images really are not being created', 'sf-image-resizer' ); ?></summary>
-					<p><?php esc_html_e( 'On nginx, add this to the server configuration and reload it. Your host can apply it for you:', 'sf-image-resizer' ); ?></p>
-					<pre class="sfir-code"><code><?php echo esc_html( SFIR_Cache::get_nginx_snippet() ); ?></code></pre>
-					<p><?php esc_html_e( 'On Apache, make sure .htaccess files are honoured (AllowOverride All) for the uploads directory.', 'sf-image-resizer' ); ?></p>
-				</details>
-			<?php endif; ?>
+			self::render_check_row(
+				SFIR_Diagnostics::CHECK_REQUEST,
+				__( 'Generating on request from the browser', 'sf-image-resizer' ),
+				__( 'A browser asks for a file that does not exist yet, and the web server has to pass that request to WordPress instead of answering 404. Apache does it through the .htaccess this plugin writes; nginx needs a rule in its configuration.', 'sf-image-resizer' ),
+				$results[ SFIR_Diagnostics::CHECK_REQUEST ]
+			);
+			?>
 		</div>
+
+		<p class="description sfir-verdict"><strong><?php echo esc_html( self::get_verdict( $results ) ); ?></strong></p>
 
 		<form method="post" action="<?php echo $action; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by the caller. ?>" class="sfir-form">
 			<?php wp_nonce_field( 'sfir_recheck' ); ?>
@@ -543,6 +549,66 @@ class SFIR_Admin {
 			<?php submit_button( __( 'Clear log', 'sf-image-resizer' ), 'secondary', 'sfir-clear-log', false ); ?>
 		</form>
 		<?php
+	}
+
+	/**
+	 * Renders one line of the configuration check.
+	 *
+	 * @param string $which       Check name, see SFIR_Diagnostics::CHECK_*.
+	 * @param string $title       What is being checked.
+	 * @param string $explanation What it depends on.
+	 * @param int    $confirmed   Timestamp of the last confirmation, 0 if none.
+	 * @return void
+	 */
+	protected static function render_check_row( $which, $title, $explanation, $confirmed ) {
+		$works = $confirmed > 0;
+		?>
+		<div class="sfir-check-row <?php echo $works ? 'is-working' : 'is-unknown'; ?>" data-check="<?php echo esc_attr( $which ); ?>">
+			<p class="sfir-check-title">
+				<span class="sfir-check-mark" aria-hidden="true"><?php echo $works ? '&#10003;' : '&#8226;'; ?></span>
+				<strong><?php echo esc_html( $title ); ?></strong>
+			</p>
+			<p class="sfir-check-state">
+				<?php
+				if ( $works ) {
+					printf(
+						/* translators: %s: date and time of the last confirmation. */
+						esc_html__( 'Works on this server. Confirmed on %s.', 'sf-image-resizer' ),
+						esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $confirmed ) )
+					);
+				} else {
+					esc_html_e( 'Not confirmed on this server.', 'sf-image-resizer' );
+				}
+				?>
+			</p>
+			<p class="description"><?php echo esc_html( $explanation ); ?></p>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Sums up what the two checks mean together.
+	 *
+	 * @param array $results Result of SFIR_Diagnostics::get_results().
+	 * @return string
+	 */
+	protected static function get_verdict( array $results ) {
+		$render  = $results[ SFIR_Diagnostics::CHECK_RENDER ] > 0;
+		$request = $results[ SFIR_Diagnostics::CHECK_REQUEST ] > 0;
+
+		if ( $render && $request ) {
+			return __( 'Both ways work here, so any mode below is safe. Generating on request is the lighter one.', 'sf-image-resizer' );
+		}
+
+		if ( $render ) {
+			return __( 'This server supports generating while the page is rendered, but not on request. That is not a fault, and your images are being produced normally — it is exactly the case the first mode below exists for. Leave the mode on "Automatic" or set it to the first one.', 'sf-image-resizer' );
+		}
+
+		if ( $request ) {
+			return __( 'Generating on request works here, which is the lighter of the two. The other check has not answered yet.', 'sf-image-resizer' );
+		}
+
+		return __( 'Neither check has answered yet. They run in your browser when this tab is open, so give the page a moment, and make sure no ad blocker is stopping requests to your own site.', 'sf-image-resizer' );
 	}
 
 	/**
@@ -588,6 +654,14 @@ class SFIR_Admin {
 
 			<?php submit_button( __( 'Save', 'sf-image-resizer' ), 'secondary', 'sfir-save-mode', false ); ?>
 		</form>
+
+		<details class="sfir-hints"<?php echo SFIR_Diagnostics::get_confirmed_at() > 0 ? '' : ' open="open"'; ?>>
+			<summary><?php esc_html_e( 'Making the on-request mode work on nginx', 'sf-image-resizer' ); ?></summary>
+			<p><?php esc_html_e( 'nginx answers a request for a file that does not exist with 404 and never involves WordPress, which is why the on-request mode cannot work until it is told otherwise. Add this to the server configuration of this site and reload nginx. Your host can apply it for you; it affects one directory and nothing else:', 'sf-image-resizer' ); ?></p>
+			<pre class="sfir-code"><code><?php echo esc_html( SFIR_Cache::get_nginx_snippet() ); ?></code></pre>
+			<p class="description"><?php esc_html_e( 'The ^~ matters: without it the rule loses to the block that serves static images, which is present in almost every configuration. Once nginx is reloaded, press "Check again" above.', 'sf-image-resizer' ); ?></p>
+			<p><?php esc_html_e( 'On Apache nothing needs adding, but .htaccess files have to be honoured (AllowOverride All) for the uploads directory.', 'sf-image-resizer' ); ?></p>
+		</details>
 		<?php
 	}
 
@@ -599,14 +673,14 @@ class SFIR_Admin {
 	 */
 	protected static function get_mode_description( $mode ) {
 		if ( SFIR_Generator::MODE_ALWAYS === $mode ) {
-			return __( 'Pick this when the check above keeps failing and the server configuration cannot be changed. Works everywhere, including nginx without the rewrite rule.', 'sf-image-resizer' );
+			return __( 'Every size of every image on the page is created as the page is built, even the sizes no visitor has needed yet. Nine images at six widths is 54 copies, so the first visit creates part of them and the following visits create the rest — deliberately, so that a page full of new sizes cannot run into the PHP timeout and hold the site up. Slower on the first visits, and it works on every server.', 'sf-image-resizer' );
 		}
 
 		if ( SFIR_Generator::MODE_NEVER === $mode ) {
-			return __( 'The lightest option for page rendering, but it needs the web server to pass requests for missing files to WordPress.', 'sf-image-resizer' );
+			return __( 'Nothing is made in advance. When a visitor arrives whose screen needs a particular size, that visitor\'s browser asks for it, the plugin creates exactly that one copy and caches it on disk, and it is never made again. Only the sizes really being looked at are ever created, and no page render is slowed down. This is the better of the two — but it needs the web server to pass a request for a missing file to WordPress, and not every server can be made to do that. The mode above exists to cover the ones that cannot.', 'sf-image-resizer' );
 		}
 
-		return __( 'Produce copies while rendering until the check above confirms that requests for missing files reach the plugin, then stop. Recommended.', 'sf-image-resizer' );
+		return __( 'Uses whichever of the two below works on this server. It starts by generating up front, and switches to generating on request as soon as the check above confirms that requests for missing files reach the plugin. Leave it on this unless you have a reason not to.', 'sf-image-resizer' );
 	}
 
 	// ---------------------------------------------------------------------
