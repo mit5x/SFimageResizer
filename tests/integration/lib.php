@@ -356,6 +356,31 @@ function sfir_forget_user_meta( $user_id ) {
 }
 
 /**
+ * Reads the URLs of the configuration-check images out of the screen.
+ *
+ * They live in the markup rather than in the localized script, because the
+ * check is settled by the browser loading the images themselves.
+ *
+ * @param string $html Page markup.
+ * @return array<string,string> Check name to image URL.
+ */
+function sfir_probe_urls( $html ) {
+	$found = array();
+
+	if ( ! preg_match_all( '#data-check="([a-z]+)"(.*?)</div>\s*</div>\s*</div>#s', $html, $rows, PREG_SET_ORDER ) ) {
+		return $found;
+	}
+
+	foreach ( $rows as $row ) {
+		if ( preg_match( '#<img class="sfir-probe" src="([^"]+)"#', $row[2], $image ) ) {
+			$found[ $row[1] ] = html_entity_decode( $image[1], ENT_QUOTES, 'UTF-8' );
+		}
+	}
+
+	return $found;
+}
+
+/**
  * Reads the settings wp_localize_script() printed for the admin script.
  *
  * @param string $html Page markup.

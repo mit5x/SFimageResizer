@@ -42,6 +42,7 @@ Or hand the browser every size at once and let it pick:
 │   ├── readme.txt
 │   ├── includes/
 │   ├── admin/
+│   ├── assets/              the image the configuration check resizes
 │   ├── docs/                the Markdown reference the screen hands out
 │   └── languages/           .pot, and .po/.mo for seven locales
 ├── tests/
@@ -74,9 +75,11 @@ Or hand the browser every size at once and let it pick:
 3. Call `sf_img()`, `sf_img_srcset()`, `sf_img_width()`, `sf_img_height()` or
    `sf_img_tag()` from your templates.
 
-The settings screen is on *Settings → SF Image resizer*, reachable from the
-**Settings** link in the plugin row as well. It has three tabs — Cache, Check
-and log, Documentation. *Check and log* also decides **when copies are
+The screen has its own entry in the main admin menu, reachable from the
+**Settings** link in the plugin row as well. It has four tabs — Cache,
+Settings, Check and log, Documentation. *Settings* can stop WordPress shrinking
+uploads to 2560 pixels, which matters because the plugin can only resize down
+from the file WordPress kept. *Check and log* decides **when copies are
 produced**: while the page renders, or on the browser's first request for the
 file. The default works out which of the two your server supports. The screen
 follows the site language, with a picker for

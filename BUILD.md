@@ -83,13 +83,15 @@ sf-image-resizer/
 ├── readme.txt
 ├── includes/
 ├── admin/
+├── assets/
 ├── docs/
 └── languages/
 ```
 
-`docs/sf-image-resizer.md` is the reference the Documentation tab offers for
-download, and `languages/` holds the `.pot` plus a `.po` and a compiled `.mo`
-for each translated locale. Both directories ship.
+`assets/self-check-source.png` is the 1280×1280 image the configuration check
+resizes, `docs/sf-image-resizer.md` is the reference the Documentation tab
+offers for download, and `languages/` holds the `.pot` plus a `.po` and a
+compiled `.mo` for each translated locale. All three directories ship.
 
 ## Verifying an archive
 

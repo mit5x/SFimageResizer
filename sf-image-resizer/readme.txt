@@ -4,7 +4,7 @@ Tags: images, resize, thumbnails, webp, performance
 Requires at least: 7.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,8 +30,10 @@ crop, quality and format you need, right where you need it:
 * Safe by design: local files only, signed generation URLs, strict parameter
   validation, graceful SVG placeholders on errors — a broken image never
   breaks your site.
-* Admin page with cache statistics, one-click cache/log cleanup and full
-  documentation.
+* Admin page with cache statistics, one-click cache/log cleanup, a visual
+  configuration check and full documentation.
+* Optionally stops WordPress shrinking uploads to 2560 pixels, so the plugin
+  has the full size original to resize from.
 
 Requires the GD extension (bundled with virtually every WordPress hosting).
 If your PHP build lacks WebP support, the plugin automatically falls back
@@ -81,8 +83,8 @@ Problems are recorded in
 1. Upload the `sf-image-resizer` folder to `/wp-content/plugins/`.
 2. Activate the plugin through the "Plugins" screen in WordPress.
 3. Call `sf_img()` and friends from your theme templates.
-4. Settings → SF Image resizer shows cache statistics, the configuration check,
-   the log and the full documentation.
+4. SF Image resizer in the main admin menu shows cache statistics, the upload
+   settings, the configuration check, the log and the full documentation.
 
 == Frequently Asked Questions ==
 
@@ -133,6 +135,14 @@ No. The two are alternatives, not requirements, and the plugin only needs one
 of them. It is normal for nginx without the extra rule to support only the
 first.
 
+= Should I turn off the 2560 pixel upload limit? =
+Turn it off if you serve retina or full width images through this plugin. It
+can only resize down from the file WordPress kept, so a 4000 pixel photo that
+was reduced to 2560 at upload time can never produce a sharp 2560 pixel copy,
+let alone a larger one. The cost is disk space. Images already in the media
+library are unaffected — WordPress discarded their full size when they were
+uploaded, so re-upload the ones that matter.
+
 = Which generation mode should I choose? =
 Leave it on "Automatic" unless you have a reason not to: it uses whichever of
 the other two works on your server. Choose "up front" to keep the web server
@@ -149,11 +159,34 @@ original is used for that one image rather than a broken one.
 == Screenshots ==
 
 1. The Cache tab: statistics, the cache directory and the maintenance buttons.
-2. The Check and log tab: the configuration check and the error log.
-3. The Documentation tab: the functions, the parameters, worked examples and
+2. The Settings tab: whether WordPress may shrink uploads.
+3. The Check and log tab: the visual configuration check and the error log.
+4. The Documentation tab: the functions, the parameters, worked examples and
    the Markdown reference for an AI assistant.
 
 == Changelog ==
+
+= 1.5.0 =
+* The plugin now has its own entry in the main admin menu instead of sitting
+  under Settings. The old address keeps working, so no bookmark breaks.
+* New Settings tab with a switch that stops WordPress shrinking uploads.
+  On its own WordPress reduces anything over 2560 pixels at upload time, keeps
+  the smaller file as the original and adds "-scaled" to its name; this plugin
+  can only ever resize down from what it is given, so that ceiling was also the
+  ceiling of what it could produce.
+* Fixed the configuration check reporting a failure for "generating while the
+  page is rendered" on every server, including ones where it plainly worked.
+  The screen created the test copy and then deleted it again before the browser
+  could load it, so that half of the check could only ever pass on a server
+  whose request path already worked — exactly backwards.
+* The check is now visual. Each half loads a real 50x50 image, produced by the
+  mechanism it is testing, and shows it on the screen. A picture you can see is
+  a check that passed. The images are produced from a 1280x1280 source that
+  ships with the plugin.
+* The check is settled by the image elements themselves rather than by a
+  background request, so content blockers can no longer hide a working setup.
+* Both halves now run on every visit to the tab, so what is shown is the state
+  now rather than a stored memory of it.
 
 = 1.4.0 =
 * The configuration check now tests both ways of producing a copy, separately,
@@ -228,6 +261,12 @@ original is used for that one image rather than a broken one.
 * Initial release.
 
 == Upgrade Notice ==
+
+= 1.5.0 =
+Fixes the configuration check, which reported a failure for render-time
+generation even where it worked. The check is now visual: each half shows the
+test image it produced. Adds a top-level admin menu entry and a switch that
+stops WordPress shrinking uploads to 2560 pixels.
 
 = 1.4.0 =
 The configuration check now tests both ways of producing a copy and reports

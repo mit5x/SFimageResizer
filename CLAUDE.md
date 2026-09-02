@@ -68,8 +68,10 @@ section 6 of `TEST-REPORT.md`, then run `tests/run-tests.sh`.
   new one needs a reason no default can cover, and the generation mode is the
   standing example — some servers cannot be configured at all, so the plugin
   has to be told.
-* The admin screen has exactly three tabs: Cache, Check and log, Documentation.
-  New material goes into one of them rather than into a fourth.
+* The admin screen has four tabs: Cache, Settings, Check and log,
+  Documentation. New material goes into one of them rather than into a fifth.
+* The screen is a top-level admin menu entry, not a Settings sub-page. Every
+  link the plugin prints to it goes through `SFIR_Admin::get_tab_url()`.
 * `docs/sf-image-resizer.md` is what the Documentation tab hands out for an AI
   assistant to read. Keep it in step with the functions and their parameters:
   a stale reference makes an assistant write markup that does not work.
@@ -80,6 +82,11 @@ section 6 of `TEST-REPORT.md`, then run `tests/run-tests.sh`.
 * `sf_img()` must never return a cache URL with no file behind it while the
   render-time mode is on. That mode exists precisely for servers that answer
   such a URL with 404, so returning one would defeat it.
+* The configuration check tests each mechanism with a real image the browser
+  loads. Neither half may depend on the other, and the request probe's file
+  must not exist when the browser asks for it — that absence is the whole
+  test. Anything that creates or deletes probe files has to be ordered with
+  that in mind.
 
 ## Every `phpcs:ignore` needs a reason
 

@@ -918,4 +918,93 @@ SFIR_Cache::flush_runtime_cache();
 
 SFIR_TestRunner::equals( SFIR_Generator::MODE_AUTO, SFIR_Generator::get_mode(), 'the mode is back to the shipped default' );
 
+/* --------------------------------------------------------------------------
+ * 1.5.0: keeping uploads at their original size.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.5.0 upload threshold' );
+
+require_once ABSPATH . 'wp-admin/includes/image.php';
+require_once ABSPATH . 'wp-admin/includes/file.php';
+require_once ABSPATH . 'wp-admin/includes/media.php';
+
+$oversized = wp_tempnam( 'sfir-oversized.jpg' );
+$canvas    = imagecreatetruecolor( 3200, 2400 );
+imagefilledrectangle( $canvas, 0, 0, 3199, 2399, imagecolorallocate( $canvas, 90, 140, 200 ) );
+imagejpeg( $canvas, $oversized, 82 );
+imagedestroy( $canvas );
+
+/**
+ * Uploads the oversized fixture and reports what WordPress kept.
+ *
+ * @return array{width:int,height:int,name:string}
+ */
+function sfir_probe_upload() {
+	$copy = wp_tempnam( 'sfir-oversized.jpg' );
+	copy( $GLOBALS['sfir_oversized'], $copy );
+
+	$id = media_handle_sideload(
+		array(
+			'name'     => 'sfir-threshold-' . wp_rand( 1000, 9999 ) . '.jpg',
+			'tmp_name' => $copy,
+		),
+		0
+	);
+
+	if ( is_wp_error( $id ) ) {
+		return array(
+			'width'  => 0,
+			'height' => 0,
+			'name'   => $id->get_error_message(),
+		);
+	}
+
+	$file = get_attached_file( $id );
+	$size = getimagesize( $file );
+	$name = basename( $file );
+
+	wp_delete_attachment( $id, true );
+
+	return array(
+		'width'  => is_array( $size ) ? (int) $size[0] : 0,
+		'height' => is_array( $size ) ? (int) $size[1] : 0,
+		'name'   => $name,
+	);
+}
+
+$GLOBALS['sfir_oversized'] = $oversized;
+
+// Off: WordPress does what it always does.
+SFIR_Settings::set_keeps_full_size_uploads( false );
+remove_all_filters( 'big_image_size_threshold' );
+SFIR_Settings::init();
+
+SFIR_TestRunner::equals( 2560, SFIR_Settings::get_effective_threshold(), 'with the switch off the threshold is the WordPress default' );
+
+$shrunk = sfir_probe_upload();
+
+SFIR_TestRunner::equals( 2560, $shrunk['width'], 'a 3200 pixel upload is shrunk to 2560' );
+SFIR_TestRunner::equals( 1920, $shrunk['height'], 'and its height is scaled in proportion' );
+SFIR_TestRunner::check( false !== strpos( $shrunk['name'], '-scaled' ), 'WordPress marks it with -scaled', $shrunk['name'] );
+
+// On: the file that was uploaded is the file that is kept.
+SFIR_Settings::set_keeps_full_size_uploads( true );
+remove_all_filters( 'big_image_size_threshold' );
+SFIR_Settings::init();
+
+SFIR_TestRunner::equals( 0, SFIR_Settings::get_effective_threshold(), 'with the switch on nothing is shrunk' );
+
+$kept = sfir_probe_upload();
+
+SFIR_TestRunner::equals( 3200, $kept['width'], 'the same upload keeps its full width' );
+SFIR_TestRunner::equals( 2400, $kept['height'], 'and its full height' );
+SFIR_TestRunner::check( false === strpos( $kept['name'], '-scaled' ), 'no -scaled suffix is added', $kept['name'] );
+
+// Leave the site on the shipped default.
+SFIR_Settings::set_keeps_full_size_uploads( false );
+remove_all_filters( 'big_image_size_threshold' );
+SFIR_Settings::init();
+
+wp_delete_file( $oversized );
+
 exit( SFIR_TestRunner::summary() );

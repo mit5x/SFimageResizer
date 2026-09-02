@@ -38,6 +38,11 @@ class SFIR_Admin {
 	const TAB_CHECK = 'check';
 
 	/**
+	 * Tab holding the settings that change what WordPress itself does.
+	 */
+	const TAB_SETTINGS = 'settings';
+
+	/**
 	 * Tab showing the documentation.
 	 */
 	const TAB_DOCS = 'documentation';
@@ -55,20 +60,23 @@ class SFIR_Admin {
 		add_action( 'admin_post_sfir_recheck', array( __CLASS__, 'handle_recheck' ) );
 		add_action( 'admin_post_sfir_language', array( __CLASS__, 'handle_language' ) );
 		add_action( 'admin_post_sfir_generate_mode', array( __CLASS__, 'handle_generate_mode' ) );
+		add_action( 'admin_post_sfir_settings', array( __CLASS__, 'handle_settings' ) );
 	}
 
 	/**
-	 * Adds the page under the Settings menu.
+	 * Adds the plugin to the main admin menu.
 	 *
 	 * @return void
 	 */
 	public static function register_page() {
-		add_options_page(
+		add_menu_page(
 			__( 'SF Image resizer', 'sf-image-resizer' ),
 			__( 'SF Image resizer', 'sf-image-resizer' ),
 			self::CAPABILITY,
 			self::PAGE_SLUG,
-			array( __CLASS__, 'render_page' )
+			array( __CLASS__, 'render_page' ),
+			'dashicons-format-image',
+			81
 		);
 	}
 
@@ -79,7 +87,7 @@ class SFIR_Admin {
 	 * @return void
 	 */
 	public static function enqueue_assets( $hook_suffix ) {
-		if ( 'settings_page_' . self::PAGE_SLUG !== $hook_suffix ) {
+		if ( 'toplevel_page_' . self::PAGE_SLUG !== $hook_suffix ) {
 			return;
 		}
 
@@ -98,34 +106,19 @@ class SFIR_Admin {
 			true
 		);
 
-		// Each check is only run while its own answer is still unknown, and only
-		// on the tab that shows the results.
-		$on_check_tab = self::TAB_CHECK === self::get_current_tab();
-		$results      = SFIR_Diagnostics::get_results();
-
-		$request_probe = ( $on_check_tab && $results[ SFIR_Diagnostics::CHECK_REQUEST ] < 1 )
-			? SFIR_Diagnostics::get_probe_url()
-			: '';
-
-		$render_probe = ( $on_check_tab && $results[ SFIR_Diagnostics::CHECK_RENDER ] < 1 )
-			? SFIR_Diagnostics::get_render_probe_url()
-			: '';
-
 		wp_localize_script(
 			'sfir-admin',
 			'sfirAdmin',
 			array(
 				'confirmCache' => __( 'Delete every cached image? They will be regenerated on demand.', 'sf-image-resizer' ),
 				'confirmLog'   => __( 'Clear the error log?', 'sf-image-resizer' ),
-				'probeUrl'     => $request_probe,
-				'renderUrl'    => $render_probe,
 				'ajaxUrl'      => admin_url( 'admin-ajax.php' ),
 				'ajaxAction'   => SFIR_Diagnostics::AJAX_ACTION,
 				'nonce'        => wp_create_nonce( SFIR_Diagnostics::AJAX_ACTION ),
-				'checkRequest' => SFIR_Diagnostics::CHECK_REQUEST,
-				'checkRender'  => SFIR_Diagnostics::CHECK_RENDER,
 				'workingLabel' => __( 'Works on this server.', 'sf-image-resizer' ),
-				'checkedNow'   => __( 'Checked from your browser just now.', 'sf-image-resizer' ),
+				'checkedNow'   => __( 'The image below loaded in your browser just now.', 'sf-image-resizer' ),
+				'failedLabel'  => __( 'Does not work on this server.', 'sf-image-resizer' ),
+				'failedText'   => __( 'The image below could not be loaded.', 'sf-image-resizer' ),
 				'copied'       => __( 'Copied', 'sf-image-resizer' ),
 				'copyFailed'   => __( 'Press Ctrl+C to copy', 'sf-image-resizer' ),
 			)
@@ -235,6 +228,26 @@ class SFIR_Admin {
 	}
 
 	/**
+	 * Handles the settings form.
+	 *
+	 * @return void
+	 */
+	public static function handle_settings() {
+		self::verify_request( 'sfir_settings' );
+
+		// The nonce and the capability are checked by verify_request() above;
+		// the sniff cannot follow the call into that helper.
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$keep_full = ! empty( $_POST['sfir_keep_full_size_uploads'] );
+
+		SFIR_Settings::set_keeps_full_size_uploads( $keep_full );
+
+		self::set_notice( 'success', __( 'The settings have been saved.', 'sf-image-resizer' ) );
+
+		self::redirect_back( self::TAB_SETTINGS );
+	}
+
+	/**
 	 * Rejects the request unless it is a signed POST from an allowed user.
 	 *
 	 * @param string $action Nonce action.
@@ -310,9 +323,10 @@ class SFIR_Admin {
 	 */
 	protected static function get_tabs() {
 		return array(
-			self::TAB_CACHE => __( 'Cache', 'sf-image-resizer' ),
-			self::TAB_CHECK => __( 'Check and log', 'sf-image-resizer' ),
-			self::TAB_DOCS  => __( 'Documentation', 'sf-image-resizer' ),
+			self::TAB_CACHE    => __( 'Cache', 'sf-image-resizer' ),
+			self::TAB_SETTINGS => __( 'Settings', 'sf-image-resizer' ),
+			self::TAB_CHECK    => __( 'Check and log', 'sf-image-resizer' ),
+			self::TAB_DOCS     => __( 'Documentation', 'sf-image-resizer' ),
 		);
 	}
 
@@ -337,7 +351,7 @@ class SFIR_Admin {
 	 * @return string
 	 */
 	public static function get_tab_url( $tab ) {
-		$url = admin_url( 'options-general.php?page=' . self::PAGE_SLUG );
+		$url = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
 
 		if ( self::TAB_CACHE !== $tab ) {
 			$url .= '&tab=' . rawurlencode( $tab );
@@ -382,6 +396,8 @@ class SFIR_Admin {
 				<?php
 				if ( self::TAB_CHECK === $tab ) {
 					self::render_tab_check( $action );
+				} elseif ( self::TAB_SETTINGS === $tab ) {
+					self::render_tab_settings( $action );
 				} elseif ( self::TAB_DOCS === $tab ) {
 					self::render_tab_documentation();
 				} else {
@@ -487,6 +503,63 @@ class SFIR_Admin {
 	}
 
 	// ---------------------------------------------------------------------
+	// Tab: settings.
+	// ---------------------------------------------------------------------
+
+	/**
+	 * Renders the settings that change what WordPress itself does.
+	 *
+	 * @param string $action URL of admin-post.php, already escaped.
+	 * @return void
+	 */
+	protected static function render_tab_settings( $action ) {
+		$keep_full = SFIR_Settings::keeps_full_size_uploads();
+		$threshold = SFIR_Settings::get_effective_threshold();
+		?>
+		<h2><?php esc_html_e( 'Uploads', 'sf-image-resizer' ); ?></h2>
+
+		<form method="post" action="<?php echo $action; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by the caller. ?>" class="sfir-form">
+			<?php wp_nonce_field( 'sfir_settings' ); ?>
+			<input type="hidden" name="action" value="sfir_settings" />
+
+			<fieldset class="sfir-modes">
+				<label>
+					<input type="checkbox" name="sfir_keep_full_size_uploads" value="1" <?php checked( $keep_full ); ?> />
+					<span><?php esc_html_e( 'Keep uploaded images at their original size', 'sf-image-resizer' ); ?></span>
+				</label>
+				<p class="description">
+					<?php esc_html_e( 'On its own, WordPress shrinks any image wider or taller than 2560 pixels when it is uploaded, keeps the smaller version as the original and adds "-scaled" to its file name. The full size image is never used again. Tick this box and the file you upload is the file that is kept.', 'sf-image-resizer' ); ?>
+				</p>
+				<p class="description">
+					<?php esc_html_e( 'Worth doing if you serve retina or full width images through this plugin, since it can only ever resize down from what it is given. The cost is disk space, and slightly more work the first time a large original is resized.', 'sf-image-resizer' ); ?>
+				</p>
+				<p class="description">
+					<?php esc_html_e( 'Images already uploaded are not affected: WordPress shrank them at upload time and the full size is gone. Re-upload the ones that matter.', 'sf-image-resizer' ); ?>
+				</p>
+			</fieldset>
+
+			<p class="description sfir-verdict">
+				<strong>
+					<?php
+					if ( $threshold > 0 ) {
+						printf(
+							/* translators: %d: threshold in pixels. */
+							esc_html__( 'Right now: WordPress shrinks uploads larger than %d pixels.', 'sf-image-resizer' ),
+							(int) $threshold
+						);
+					} else {
+						esc_html_e( 'Right now: uploads are kept at their original size.', 'sf-image-resizer' );
+					}
+					?>
+				</strong>
+			</p>
+
+			<?php submit_button( __( 'Save', 'sf-image-resizer' ), 'secondary', 'sfir-save-settings', false ); ?>
+		</form>
+		<?php
+	}
+
+	// ---------------------------------------------------------------------
 	// Tab: check and log.
 	// ---------------------------------------------------------------------
 
@@ -500,12 +573,20 @@ class SFIR_Admin {
 		$results = SFIR_Diagnostics::get_results();
 		$log     = SFIR_Logger::read( 50 );
 
-		// Clean up after any earlier browser check before starting a new one.
+		// Clear out the copies earlier visits left behind, and only then make
+		// the ones this visit is about to show. Doing it the other way round
+		// deletes the file the render check has just produced, and the browser
+		// is then handed a URL with nothing behind it.
 		SFIR_Diagnostics::cleanup_probe_files();
+
+		// Both checks run on every visit: what matters is whether they work
+		// now, not whether they once did.
+		$render_url  = SFIR_Diagnostics::get_render_probe_url();
+		$request_url = SFIR_Diagnostics::get_probe_url();
 		?>
 		<h2><?php esc_html_e( 'Configuration check', 'sf-image-resizer' ); ?></h2>
 		<p class="description">
-			<?php esc_html_e( 'There are two ways for a resized copy to come into being, and a server can support one without the other. Each is checked on its own, from your own browser.', 'sf-image-resizer' ); ?>
+			<?php esc_html_e( 'There are two ways for a resized copy to come into being, and a server can support one without the other. Each is checked on its own by loading a real image in your browser, right here. A picture you can see is a check that passed.', 'sf-image-resizer' ); ?>
 		</p>
 
 		<div id="sfir-check">
@@ -513,15 +594,17 @@ class SFIR_Admin {
 			self::render_check_row(
 				SFIR_Diagnostics::CHECK_RENDER,
 				__( 'Generating while the page is rendered', 'sf-image-resizer' ),
-				__( 'The plugin creates the file itself, then the web server hands it over like any other file. Nothing else is required, so this works almost everywhere.', 'sf-image-resizer' ),
-				$results[ SFIR_Diagnostics::CHECK_RENDER ]
+				__( 'The plugin created the image below during this page load, and your browser then asked the web server for it like any other file. Nothing else is required, so this works almost everywhere.', 'sf-image-resizer' ),
+				$results[ SFIR_Diagnostics::CHECK_RENDER ],
+				$render_url
 			);
 
 			self::render_check_row(
 				SFIR_Diagnostics::CHECK_REQUEST,
 				__( 'Generating on request from the browser', 'sf-image-resizer' ),
-				__( 'A browser asks for a file that does not exist yet, and the web server has to pass that request to WordPress instead of answering 404. Apache does it through the .htaccess this plugin writes; nginx needs a rule in its configuration.', 'sf-image-resizer' ),
-				$results[ SFIR_Diagnostics::CHECK_REQUEST ]
+				__( 'The image below does not exist on disk. Your browser is asking for it anyway, and the web server has to pass that request to WordPress instead of answering 404. Apache does it through the .htaccess this plugin writes; nginx needs a rule in its configuration.', 'sf-image-resizer' ),
+				$results[ SFIR_Diagnostics::CHECK_REQUEST ],
+				$request_url
 			);
 			?>
 		</div>
@@ -554,13 +637,19 @@ class SFIR_Admin {
 	/**
 	 * Renders one line of the configuration check.
 	 *
+	 * The verdict is drawn from the last stored answer so that the page is
+	 * readable without JavaScript, and the image is what settles it for this
+	 * visit: the browser either loads it or it does not, and the script turns
+	 * that into the state shown here.
+	 *
 	 * @param string $which       Check name, see SFIR_Diagnostics::CHECK_*.
 	 * @param string $title       What is being checked.
 	 * @param string $explanation What it depends on.
 	 * @param int    $confirmed   Timestamp of the last confirmation, 0 if none.
+	 * @param string $probe_url   URL of the image that settles it.
 	 * @return void
 	 */
-	protected static function render_check_row( $which, $title, $explanation, $confirmed ) {
+	protected static function render_check_row( $which, $title, $explanation, $confirmed, $probe_url ) {
 		$works = $confirmed > 0;
 		?>
 		<div class="sfir-check-row <?php echo $works ? 'is-working' : 'is-unknown'; ?>" data-check="<?php echo esc_attr( $which ); ?>">
@@ -568,20 +657,35 @@ class SFIR_Admin {
 				<span class="sfir-check-mark" aria-hidden="true"><?php echo $works ? '&#10003;' : '&#8226;'; ?></span>
 				<strong><?php echo esc_html( $title ); ?></strong>
 			</p>
-			<p class="sfir-check-state">
-				<?php
-				if ( $works ) {
-					printf(
-						/* translators: %s: date and time of the last confirmation. */
-						esc_html__( 'Works on this server. Confirmed on %s.', 'sf-image-resizer' ),
-						esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $confirmed ) )
-					);
-				} else {
-					esc_html_e( 'Not confirmed on this server.', 'sf-image-resizer' );
-				}
-				?>
-			</p>
-			<p class="description"><?php echo esc_html( $explanation ); ?></p>
+
+			<div class="sfir-check-body">
+				<div class="sfir-check-figure">
+					<?php if ( '' !== $probe_url ) : ?>
+						<img class="sfir-probe" src="<?php echo esc_url( $probe_url ); ?>" width="<?php echo (int) SFIR_Diagnostics::PROBE_SIZE; ?>" height="<?php echo (int) SFIR_Diagnostics::PROBE_SIZE; ?>" alt="<?php esc_attr_e( 'Test image', 'sf-image-resizer' ); ?>" />
+					<?php else : ?>
+						<span class="sfir-probe-missing" aria-hidden="true">&#10007;</span>
+					<?php endif; ?>
+				</div>
+
+				<div class="sfir-check-text">
+					<p class="sfir-check-state">
+						<?php
+						if ( '' === $probe_url ) {
+							esc_html_e( 'The test image could not be produced at all. Check that GD is available and that the cache directory is writable; the log below will say which.', 'sf-image-resizer' );
+						} elseif ( $works ) {
+							printf(
+								/* translators: %s: date and time of the last confirmation. */
+								esc_html__( 'Works on this server. Confirmed on %s.', 'sf-image-resizer' ),
+								esc_html( wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $confirmed ) )
+							);
+						} else {
+							esc_html_e( 'Checking…', 'sf-image-resizer' );
+						}
+						?>
+					</p>
+					<p class="description"><?php echo esc_html( $explanation ); ?></p>
+				</div>
+			</div>
 		</div>
 		<?php
 	}

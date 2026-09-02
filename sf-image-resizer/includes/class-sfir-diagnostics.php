@@ -66,6 +66,16 @@ class SFIR_Diagnostics {
 	const PROBE_PATH = 'selftest/probe.png';
 
 	/**
+	 * The image shipped with the plugin that both probes resize.
+	 */
+	const PROBE_SOURCE = 'assets/self-check-source.png';
+
+	/**
+	 * Side of the copies the checks produce, in pixels.
+	 */
+	const PROBE_SIZE = 50;
+
+	/**
 	 * Shortest interval between two writes of the confirmation option.
 	 */
 	const CONFIRM_INTERVAL = DAY_IN_SECONDS;
@@ -172,94 +182,6 @@ class SFIR_Diagnostics {
 	}
 
 	/**
-	 * Builds a signed cache URL that is certain not to exist yet.
-	 *
-	 * @return string URL, or an empty string when the probe image is unavailable.
-	 */
-	public static function get_probe_url() {
-		$source = self::ensure_probe_image();
-
-		if ( '' === $source ) {
-			return '';
-		}
-
-		$resolved = SFIR_Core::resolve_path( $source );
-
-		if ( empty( $resolved['ok'] ) ) {
-			return '';
-		}
-
-		// A different width every time, so the cache always misses.
-		$params = SFIR_Core::apply_format_support( SFIR_Core::parse_params( 'w=' . wp_rand( 1000, 4999 ) . '&q=61' ) );
-
-		$hash         = SFIR_Security::short_hash( SFIR_Core::signature_payload( $resolved['key'], $params ) );
-		$relative_dir = SFIR_Core::cache_relative_dir( $resolved );
-		$filename     = SFIR_Core::build_cache_filename( basename( $resolved['relative'] ), $params, $hash );
-
-		return SFIR_Cache::get_file_url( $relative_dir, $filename );
-	}
-
-	/**
-	 * Builds a cache URL whose file this method has just produced.
-	 *
-	 * This is what the render-time mode does on every page, so loading the
-	 * result proves that the mode works on this server. Nothing is asked of the
-	 * web server beyond serving a file that exists.
-	 *
-	 * @return string URL, or an empty string when the copy could not be made.
-	 */
-	public static function get_render_probe_url() {
-		$source = self::ensure_probe_image();
-
-		if ( '' === $source ) {
-			return '';
-		}
-
-		$resolved = SFIR_Core::resolve_path( $source );
-
-		if ( empty( $resolved['ok'] ) ) {
-			return '';
-		}
-
-		// A different width every time, so a copy left over from an earlier
-		// check can never be mistaken for one produced just now. The range has
-		// to stay under SFIR_MAX_DIMENSION, or every width would be clamped to
-		// the same number and the file name would stop changing. The quality
-		// differs from the one the other probe uses, so the two can never end
-		// up asking for the same file.
-		$params = SFIR_Core::apply_format_support( SFIR_Core::parse_params( 'w=' . wp_rand( 3000, 4999 ) . '&q=62' ) );
-
-		$size = SFIR_Cache::get_source_size( $resolved['path'], $resolved['id'] );
-
-		if ( empty( $size['ok'] ) || ! SFIR_Cache::prepare_directories() ) {
-			return '';
-		}
-
-		$hash         = SFIR_Security::short_hash( SFIR_Core::signature_payload( $resolved['key'], $params ) );
-		$relative_dir = SFIR_Core::cache_relative_dir( $resolved );
-		$filename     = SFIR_Core::build_cache_filename( basename( $resolved['relative'] ), $params, $hash );
-		$cache_path   = SFIR_Cache::get_file_path( $relative_dir, $filename );
-
-		if ( '' === $cache_path || ! SFIR_Cache::is_inside_cache( $cache_path ) || ! SFIR_Cache::make_dir( dirname( $cache_path ) ) ) {
-			return '';
-		}
-
-		$geometry = SFIR_Core::calculate_dimensions( $size['width'], $size['height'], $params );
-
-		// Deliberately outside the rendering budget: this is one small file,
-		// asked for by an administrator looking at the screen.
-		$result = SFIR_Generator::generate_locked( $cache_path, $resolved, $size, $params, $geometry, 0 );
-
-		clearstatcache( true, $cache_path );
-
-		if ( ! in_array( $result['status'], array( 'generated', 'ready' ), true ) || ! is_file( $cache_path ) ) {
-			return '';
-		}
-
-		return SFIR_Cache::get_file_url( $relative_dir, $filename );
-	}
-
-	/**
 	 * Handles a confirmation sent by one of the browser checks.
 	 *
 	 * @return void
@@ -330,7 +252,13 @@ class SFIR_Diagnostics {
 	}
 
 	/**
-	 * Creates the small PNG the check resizes, if it is not there yet.
+	 * Puts the image both checks resize where they can reach it.
+	 *
+	 * The file ships with the plugin and is copied into the uploads directory,
+	 * because a source has to resolve inside uploads or ABSPATH and uploads is
+	 * the one of the two that is always where WordPress expects it. It is
+	 * copied again whenever it differs from the shipped one, which also
+	 * replaces the small placeholder earlier versions drew here.
 	 *
 	 * @return string Absolute path, or an empty string on failure.
 	 */
@@ -341,32 +269,181 @@ class SFIR_Diagnostics {
 			return '';
 		}
 
-		$path = $base . '/' . self::PROBE_PATH;
+		$path   = $base . '/' . self::PROBE_PATH;
+		$source = SFIR_PLUGIN_DIR . self::PROBE_SOURCE;
 
-		if ( is_file( $path ) ) {
+		if ( ! is_readable( $source ) ) {
+			return is_file( $path ) ? $path : '';
+		}
+
+		clearstatcache( true, $path );
+
+		if ( is_file( $path ) && filesize( $path ) === filesize( $source ) ) {
 			return $path;
 		}
 
-		if ( ! SFIR_Cache::make_dir( dirname( $path ) ) || ! function_exists( 'imagecreatetruecolor' ) || ! function_exists( 'imagepng' ) ) {
+		if ( ! SFIR_Cache::make_dir( dirname( $path ) ) ) {
 			return '';
 		}
 
-		$image = imagecreatetruecolor( 16, 16 );
-
-		if ( ! $image ) {
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_copy
+		if ( ! @copy( $source, $path ) ) {
 			return '';
 		}
 
-		imagefilledrectangle( $image, 0, 0, 15, 15, imagecolorallocate( $image, 120, 140, 160 ) );
-		$written = @imagepng( $image, $path ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		imagedestroy( $image );
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+		@chmod( $path, defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 );
 
-		if ( ! $written ) {
-			return '';
-		}
-
-		@chmod( $path, defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, WordPress.WP.AlternativeFunctions.file_system_operations_chmod
+		SFIR_Cache::forget_source_size( $path );
+		clearstatcache( true, $path );
 
 		return $path;
+	}
+
+	/**
+	 * Builds the parameters of one probe copy.
+	 *
+	 * Both checks ask for the same small square, so the two images on the
+	 * screen are directly comparable. They differ only in quality, which is
+	 * what keeps their file names apart: the two must never name the same
+	 * file, or the copy one of them produced would answer for the other.
+	 *
+	 * @param int $min_quality Lowest quality to pick.
+	 * @param int $max_quality Highest quality to pick.
+	 * @return array Normalised parameters.
+	 */
+	protected static function probe_params( $min_quality, $max_quality ) {
+		return SFIR_Core::apply_format_support(
+			SFIR_Core::parse_params(
+				sprintf(
+					'w=%d&h=%d&crop=1&q=%d',
+					self::PROBE_SIZE,
+					self::PROBE_SIZE,
+					wp_rand( $min_quality, $max_quality )
+				)
+			)
+		);
+	}
+
+	/**
+	 * Works out where one probe copy belongs.
+	 *
+	 * @param array $params Normalised parameters.
+	 * @return array {
+	 *     @type bool   $ok       Whether everything could be resolved.
+	 *     @type array  $resolved Resolved source.
+	 *     @type array  $size     Source size.
+	 *     @type array  $params   The parameters that were used.
+	 *     @type string $path     Absolute path of the copy.
+	 *     @type string $url      URL of the copy.
+	 * }
+	 */
+	protected static function locate_probe( array $params ) {
+		$failure = array( 'ok' => false );
+
+		$source = self::ensure_probe_image();
+
+		if ( '' === $source ) {
+			return $failure;
+		}
+
+		$resolved = SFIR_Core::resolve_path( $source );
+
+		if ( empty( $resolved['ok'] ) ) {
+			return $failure;
+		}
+
+		$size = SFIR_Cache::get_source_size( $resolved['path'], $resolved['id'] );
+
+		if ( empty( $size['ok'] ) ) {
+			return $failure;
+		}
+
+		$hash         = SFIR_Security::short_hash( SFIR_Core::signature_payload( $resolved['key'], $params ) );
+		$relative_dir = SFIR_Core::cache_relative_dir( $resolved );
+		$filename     = SFIR_Core::build_cache_filename( basename( $resolved['relative'] ), $params, $hash );
+		$path         = SFIR_Cache::get_file_path( $relative_dir, $filename );
+
+		if ( '' === $path || ! SFIR_Cache::is_inside_cache( $path ) ) {
+			return $failure;
+		}
+
+		return array(
+			'ok'       => true,
+			'resolved' => $resolved,
+			'size'     => $size,
+			'params'   => $params,
+			'path'     => $path,
+			'url'      => SFIR_Cache::get_file_url( $relative_dir, $filename ),
+		);
+	}
+
+	/**
+	 * Builds a signed cache URL whose file deliberately does not exist.
+	 *
+	 * Loading it tests whether the web server hands a request for a missing
+	 * cache file to WordPress.
+	 *
+	 * @return string URL, or an empty string when it cannot be built.
+	 */
+	public static function get_probe_url() {
+		$located = self::locate_probe( self::probe_params( 20, 55 ) );
+
+		if ( empty( $located['ok'] ) ) {
+			return '';
+		}
+
+		// It has to be missing, or the web server would answer it and the check
+		// would pass without the request ever reaching the plugin.
+		SFIR_Cache::delete_file( $located['path'] );
+		clearstatcache( true, $located['path'] );
+
+		return $located['url'];
+	}
+
+	/**
+	 * Builds a cache URL whose file this method has just produced.
+	 *
+	 * This is what the render-time mode does on every page, so loading the
+	 * result proves that the mode works on this server. Nothing is asked of the
+	 * web server beyond serving a file that exists.
+	 *
+	 * @return string URL, or an empty string when the copy could not be made.
+	 */
+	public static function get_render_probe_url() {
+		$located = self::locate_probe( self::probe_params( 56, 90 ) );
+
+		if ( empty( $located['ok'] ) || ! SFIR_Cache::prepare_directories() ) {
+			return '';
+		}
+
+		if ( ! SFIR_Cache::make_dir( dirname( $located['path'] ) ) ) {
+			return '';
+		}
+
+		$geometry = SFIR_Core::calculate_dimensions(
+			$located['size']['width'],
+			$located['size']['height'],
+			$located['params']
+		);
+
+		// Deliberately outside the rendering budget: this is one small file,
+		// asked for by an administrator looking at the screen.
+		$result = SFIR_Generator::generate_locked(
+			$located['path'],
+			$located['resolved'],
+			$located['size'],
+			$located['params'],
+			$geometry,
+			0
+		);
+
+		clearstatcache( true, $located['path'] );
+
+		if ( ! in_array( $result['status'], array( 'generated', 'ready' ), true ) || ! is_file( $located['path'] ) ) {
+			return '';
+		}
+
+		return $located['url'];
 	}
 }

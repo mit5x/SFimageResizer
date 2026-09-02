@@ -67,6 +67,7 @@ function sfir_uninstall_site() {
 	delete_option( 'sfir_pretty_urls_confirmed' );
 	delete_option( 'sfir_generate_mode' );
 	delete_option( 'sfir_render_confirmed' );
+	delete_option( 'sfir_keep_full_size_uploads' );
 
 	// Remove the per-administrator language choice for the plugin screen.
 	delete_metadata( 'user', 0, 'sfir_admin_locale', '', true );

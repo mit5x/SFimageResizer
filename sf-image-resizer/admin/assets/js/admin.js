@@ -21,37 +21,28 @@
 	}
 
 	/**
-	 * Marks one row of the configuration check as working.
+	 * Shows the outcome of one half of the configuration check.
 	 *
-	 * @param {string} which Name of the check that answered.
+	 * @param {Element} row     The row to update.
+	 * @param {boolean} working Whether the image loaded.
 	 */
-	function showWorking( which ) {
-		var row = document.querySelector( '.sfir-check-row[data-check="' + which + '"]' );
-
-		if ( ! row ) {
-			return;
-		}
-
+	function showOutcome( row, working ) {
 		row.classList.remove( 'is-unknown' );
-		row.classList.add( 'is-working' );
+		row.classList.toggle( 'is-working', working );
+		row.classList.toggle( 'is-broken', ! working );
 
 		var mark = row.querySelector( '.sfir-check-mark' );
 
 		if ( mark ) {
-			mark.textContent = '\u2713';
+			mark.textContent = working ? '\u2713' : '\u2717';
 		}
 
 		var state = row.querySelector( '.sfir-check-state' );
 
 		if ( state ) {
-			state.textContent =
-				( settings.workingLabel || '' ) + ' ' + ( settings.checkedNow || '' );
-		}
-
-		var verdict = document.querySelector( '.sfir-verdict' );
-
-		if ( verdict ) {
-			verdict.classList.add( 'sfir-hidden' );
+			state.textContent = working
+				? ( settings.workingLabel || '' ) + ' ' + ( settings.checkedNow || '' )
+				: ( settings.failedLabel || '' ) + ' ' + ( settings.failedText || '' );
 		}
 	}
 
@@ -61,7 +52,7 @@
 	 * @param {string} which Name of the check that answered.
 	 */
 	function reportSuccess( which ) {
-		if ( ! settings.ajaxUrl || ! settings.nonce ) {
+		if ( ! settings.ajaxUrl || ! settings.nonce || ! window.fetch ) {
 			return;
 		}
 
@@ -76,51 +67,52 @@
 				credentials: 'same-origin',
 				body: body,
 			} )
-			.then( function ( response ) {
-				if ( response.ok ) {
-					showWorking( which );
-				}
-			} )
 			.catch( function () {
-				// Nothing to do: the row keeps its "not confirmed" state.
+				// The row already shows the outcome; only the memory of it is lost.
 			} );
 	}
 
 	/**
-	 * Loads one probe URL exactly the way a visitor's browser would. A server
-	 * side request would prove nothing about what a browser experiences.
+	 * Watches the two test images.
 	 *
-	 * @param {string} url   URL to load.
-	 * @param {string} which Name of the check this URL stands for.
-	 */
-	function runProbe( url, which ) {
-		if ( ! url || ! window.fetch ) {
-			return;
-		}
-
-		window
-			.fetch( url, { cache: 'no-store', credentials: 'omit' } )
-			.then( function ( response ) {
-				var type = response.headers.get( 'content-type' ) || '';
-
-				if ( response.ok && 0 === type.indexOf( 'image/' ) ) {
-					reportSuccess( which );
-				}
-			} )
-			.catch( function () {
-				// Leaves the honest "not confirmed" state in place.
-			} );
-	}
-
-	/**
-	 * Runs both halves of the configuration check.
-	 *
-	 * They are independent: a server can support one and not the other, and
-	 * that is exactly what the screen wants to report.
+	 * Their own load and error events settle the check. An image element is
+	 * used rather than fetch() on purpose: it is the same request a visitor's
+	 * browser makes for a real image, it is not affected by content blockers,
+	 * and it puts the answer on the screen where it can be seen.
 	 */
 	function runCheck() {
-		runProbe( settings.renderUrl, settings.checkRender || 'render' );
-		runProbe( settings.probeUrl, settings.checkRequest || 'request' );
+		var rows = document.querySelectorAll( '.sfir-check-row' );
+
+		Array.prototype.forEach.call( rows, function ( row ) {
+			var image = row.querySelector( 'img.sfir-probe' );
+			var which = row.getAttribute( 'data-check' );
+
+			if ( ! image || ! which ) {
+				return;
+			}
+
+			function settle( working ) {
+				showOutcome( row, working );
+
+				if ( working ) {
+					reportSuccess( which );
+				}
+			}
+
+			// A cached image can be complete before the handlers are attached.
+			if ( image.complete ) {
+				settle( image.naturalWidth > 0 );
+				return;
+			}
+
+			image.addEventListener( 'load', function () {
+				settle( true );
+			} );
+
+			image.addEventListener( 'error', function () {
+				settle( false );
+			} );
+		} );
 	}
 
 	/**

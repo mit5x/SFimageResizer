@@ -2,14 +2,14 @@
 
 | | |
 |---|---|
-| Plugin version | 1.4.0 |
+| Plugin version | 1.5.0 |
 | WordPress used for testing | 7.0.3 (current stable branch at the time of writing) |
 | `Requires at least` / `Tested up to` | 7.0 |
 | `Requires PHP` | 7.4 (the minimum WordPress 7.0 itself requires) |
 | PHP used for testing | 8.4.19, GD with WebP support |
 | Database | SQLite, through the official *SQLite Database Integration* drop-in |
 | Web server | PHP built-in server, pretty permalinks enabled (`/%postname%/`) |
-| Date | 2026-08-29 |
+| Date | 2026-09-02 |
 | Web server note | `PHP_CLI_SERVER_WORKERS=6`, so the admin self-check can call the site over loopback |
 
 ## 1. Summary
@@ -17,10 +17,10 @@
 | Suite | Checks | Passed | Failed |
 |---|---:|---:|---:|
 | 11.1 Standalone unit tests (PHPUnit, no WordPress) | 56 tests / 281 assertions | 56 | 0 |
-| 11.2 Integration suite (`run.php`) | 168 | 168 | 0 |
-| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 167 | 167 | 0 |
+| 11.2 Integration suite (`run.php`) | 176 | 176 | 0 |
+| 11.2.10 Admin screen and self-check over HTTP (`admin.php`) | 189 | 189 | 0 |
 | 11.2.12 WebP fallback (`webp-fallback.php`) | 8 | 8 | 0 |
-| 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 29 | 29 | 0 |
+| 11.2.13 Activation / deactivation / uninstall (`lifecycle.php`) | 30 | 30 | 0 |
 | PHPCS with the `WordPress` ruleset + `PHPCompatibilityWP` | — | 0 errors, 0 warnings | 0 |
 | 11.3 Plugin Check, all categories, including experimental | — | 0 errors, 0 warnings | 0 |
 
@@ -94,20 +94,23 @@ attachment-ID path is exercised.
 | 11.2.10 Clear cache: with and without nonce | `11.2.10 clear cache` | 7 | pass |
 | 11.2.10 Log viewer, escaping, clear log with and without nonce | `11.2.10 log viewer` | 12 | pass |
 | 11.2.10 Documentation and local-only assets | `11.2.10 documentation and assets` | 14 | pass |
-| — Self-check level 1: real traffic records the confirmation, throttled | `self-check level 1: real traffic` | 7 | pass |
-| — Self-check level 1: the screen shows it and warns about nothing | `self-check level 1: what the screen shows` | 6 | pass |
+| — Self-check level 1: real traffic records the confirmation, throttled | `self-check level 1: real traffic` | 8 | pass |
+| — Self-check level 1: the screen shows it and warns about nothing | `self-check level 1: what the screen shows` | 5 | pass |
 | — Self-check level 2: the browser probe and its collapsed hints | `self-check level 2: the browser probe` | 11 | pass |
 | — Self-check: the confirmation endpoint, capability and nonce | `self-check: the confirmation endpoint` | 9 | pass |
 | — Self-check: "check again" resets the confirmation | `self-check: reset` | 5 | pass |
 | — Directory protection files and no directory listing | `directory protection` | 7 | pass |
 | 1.2.0 `sf_img_srcset()`: widths, descriptors, no upscaling, dedupe | `1.2.0 sf_img_srcset` | 27 | pass |
-| 1.2.0 The three tabs and what each one carries | `1.2.0 tabs` | 12 | pass |
+| 1.2.0 The tabs and what each one carries | `1.2.0 tabs` | 12 | pass |
 | 1.2.0 Language picker, seven locales, per-user memory | `1.2.0 language` | 28 | pass |
 | 1.2.0 The Markdown reference, copy button and download | `1.2.0 markdown reference` | 7 | pass |
 | 1.2.0 The "Settings" link in the plugins list | `1.2.0 plugins list` | 3 | pass |
 | 1.3.0 Render-time generation, the budget and the fallback | `1.3.0 render-time generation` | 21 | pass |
 | 1.3.0 The generation mode setting, nonce and validation | `1.3.0 generation mode` | 12 | pass |
 | 1.4.0 The render half of the check, and the two answers kept apart | `1.4.0 the render check` | 21 | pass |
+| 1.5.0 The Settings tab, the upload switch, nonce and round trip | `1.5.0 settings tab` | 15 | pass |
+| 1.5.0 The main-menu entry and the old address | `1.5.0 main menu` | 6 | pass |
+| 1.5.0 The upload threshold, verified with a real 3200px upload | `1.5.0 upload threshold` | 8 | pass |
 | 11.2.11 Log rotation past 2 MB | `11.2.11 log rotation` | 6 | pass |
 | 11.2.12 WebP fallback with `imagewebp()` disabled | `11.2.12 webp fallback` | 8 | pass |
 | 11.2.13 Activation | `11.2.13 activation` | 12 | pass |
@@ -213,6 +216,30 @@ attachment-ID path is exercised.
   without a nonce; the unsigned POST answers 403 and leaves the option alone,
   the signed one stores the value and the screen comes back with it selected.
   A value that is not one of the three modes falls back to `auto`.
+* **1.5.0 the check is settled by a picture.** Each half of the check now puts
+  a real 50×50 `<img>` on the screen, produced by the mechanism it is testing,
+  and the image's own `load`/`error` event decides the outcome. The suite pulls
+  both URLs out of the markup and asserts what a browser would find: the render
+  probe's file is on disk **after the page has finished rendering** and answers
+  200 without the `X-SFIR` header; the request probe's file is absent and its
+  answer carries `X-SFIR: generated`. The first of those is the regression test
+  for the 1.5.0 bug — the screen used to create the render probe and then delete
+  it again in the same render, so the browser was handed a URL with nothing
+  behind it and that half of the check could only pass on a server whose
+  request path already worked.
+* **1.5.0 the upload threshold.** Verified end to end rather than by asserting
+  the filter is registered: a 3200×2400 JPEG is put through
+  `media_handle_sideload()` twice. With the switch off WordPress keeps
+  2560×1920 and names the file `-scaled`; with it on the attachment is
+  3200×2400 with no suffix. `get_effective_threshold()` is asserted to report
+  2560 and 0 respectively, so the number on the screen is the number WordPress
+  would really apply.
+* **1.5.0 the main menu.** The dashboard markup is asserted to carry
+  `toplevel_page_sf-image-resizer` and the icon class, and no link to the old
+  address. The old address itself is asserted still to render the screen:
+  WordPress resolves a top-level page by slug whatever file is asked for, so
+  existing bookmarks keep working, and that is recorded here deliberately
+  rather than left as a surprise.
 * **1.4.0 the second half of the check.** The render probe is asserted to
   produce a real file, unlike the request probe, and an HTTP request for it is
   asserted to answer 200 with an image and **without** the `X-SFIR` header,
@@ -232,12 +259,12 @@ attachment-ID path is exercised.
 
 ```
 $ phpcs --standard=phpcs.xml.dist --parallel=1 --report=summary
-.............. 14 / 14 (100%)
+............... 15 / 15 (100%)
 
-Time: 1.96 secs; Memory: 28MB
+Time: 1.89 secs; Memory: 26MB
 ```
 
-All 14 PHP files of the plugin are inspected, with no errors and no warnings. The ruleset (`phpcs.xml.dist`) is `WordPress` plus
+All 15 PHP files of the plugin are inspected, with no errors and no warnings. The ruleset (`phpcs.xml.dist`) is `WordPress` plus
 `PHPCompatibilityWP` with `testVersion` set to `7.4-`, so PHP 7.4 through the
 current release are all checked.
 
@@ -256,6 +283,7 @@ exclusions in the ruleset.
 | `WordPress.Security.NonceVerification.Missing` | `class-sfir-admin.php`, `handle_language()` | The nonce and `manage_options` are both checked by `verify_request()` on the line above; the sniff cannot follow the call into that helper. The two fields it covers are sanitised and then validated against fixed lists. |
 | `WordPress.Security.NonceVerification.Recommended` | `class-sfir-admin.php`, `get_current_tab()` | The tab name selects which part of a read-only screen to draw and changes nothing, so a nonce would serve no purpose. The value is refused unless it is one of the three known tabs. |
 | `WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents` | `class-sfir-admin.php`, `get_markdown()` | Reads `docs/sf-image-resizer.md` from the plugin directory. It is a local file shipped with the plugin, not a remote request, and the path is a constant. |
+| `WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound` | `class-sfir-settings.php`, `get_effective_threshold()` | `big_image_size_threshold` is read, not introduced: asking WordPress what it would do is the only way to report a number that stays true when another plugin or the theme also filters it. Core's own filter is a plain value filter with no side effects. |
 
 ## 5. Plugin Check (spec 11.3)
 
@@ -454,11 +482,32 @@ completeness.
     made a perfectly healthy nginx look broken, which is what prompted this
     change. Each mechanism is therefore stored, tested and displayed on its
     own, and the summary line only interprets the pair.
-19. **The two probes must never name the same file.** They differ in requested
-    quality (61 for the request probe, 62 for the render probe), which puts a
-    different `-q` segment in every cache file name. Widths alone would not be
-    enough: they are clamped to `SFIR_MAX_DIMENSION`, so a range above that
-    ceiling collapses to one name — the bug fixed in 1.4.0, where every render
-    probe reused `probe-5000x0-c0-q62-…`. If the two ever collided, the file
-    the render probe created would answer the request probe and confirm a
-    request path that does not work.
+19. **The two probes must never name the same file.** Both ask for the same
+    50×50 crop, and they are kept apart by quality alone: the request probe
+    draws one from 20–55 and the render probe from 56–90, which puts a
+    different `-q` segment in every cache file name and also makes each visit
+    ask for a file no earlier visit created. Size cannot do that job, because
+    dimensions are clamped to `SFIR_MAX_DIMENSION` — a range above that ceiling
+    collapses to one name, which was the bug fixed in 1.4.0. If the two ever
+    collided, the file the render probe created would answer the request probe
+    and confirm a request path that does not work.
+20. **The render probe must outlive the render that created it (1.5.0).** The
+    screen used to clear the probe directory after building the probes, which
+    deleted the very file the browser was about to be sent for. That made the
+    render half of the check depend on the request half — the opposite of its
+    purpose — and it failed on every server where the request path does not
+    work, which is precisely the case it exists to report. Cleanup now runs
+    before the probes are built, so each visit removes the previous visit's
+    copies and keeps its own.
+21. **The check is decided by an `<img>`, not by `fetch()`.** An image element
+    makes the same request a visitor's browser makes for a real image, is not
+    affected by content blockers or by fetch-specific policies, and puts the
+    answer on the screen where it can be seen. Both halves run on every visit
+    to the tab, so the screen reports the state now; the stored timestamps only
+    remember the last answer for the automatic generation mode to consult.
+22. **The upload switch is a filter, not a copy of core's logic.** It adds
+    `big_image_size_threshold` → `__return_false` at priority 20 and does
+    nothing else, so WordPress keeps deciding everything about the upload and
+    the plugin only lifts the ceiling. It is registered on every request, not
+    just in the admin, because an upload can also arrive through the REST API,
+    XML-RPC or WP-CLI.

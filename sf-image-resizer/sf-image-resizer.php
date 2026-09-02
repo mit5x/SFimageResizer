@@ -3,7 +3,7 @@
  * Plugin Name:       SF Image resizer
  * Plugin URI:        https://web-format.net
  * Description:       On-demand image resizing, cropping and WebP/JPG conversion for theme developers, straight from PHP templates, with automatic disk caching.
- * Version:           1.4.0
+ * Version:           1.5.0
  * Requires at least: 7.0
  * Requires PHP:      7.4
  * Author:            saytformat
@@ -21,7 +21,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Plugin version.
  */
-define( 'SFIR_VERSION', '1.4.0' );
+define( 'SFIR_VERSION', '1.5.0' );
 
 /**
  * Absolute path to the main plugin file.
@@ -53,6 +53,7 @@ require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-resizer.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-endpoint.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-diagnostics.php';
 require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-generator.php';
+require_once SFIR_PLUGIN_DIR . 'includes/class-sfir-settings.php';
 require_once SFIR_PLUGIN_DIR . 'includes/functions.php';
 
 if ( is_admin() ) {
@@ -71,6 +72,7 @@ define( 'SFIR_VERSION_OPTION', 'sfir_version' );
  */
 function sfir_bootstrap() {
 	SFIR_Endpoint::init();
+	SFIR_Settings::init();
 
 	if ( is_admin() ) {
 		SFIR_I18n::init();
@@ -114,7 +116,7 @@ function sfir_maybe_upgrade() {
 function sfir_plugin_action_links( $links ) {
 	$settings = sprintf(
 		'<a href="%s">%s</a>',
-		esc_url( admin_url( 'options-general.php?page=' . SFIR_Admin::PAGE_SLUG ) ),
+		esc_url( admin_url( 'admin.php?page=' . SFIR_Admin::PAGE_SLUG ) ),
 		esc_html__( 'Settings', 'sf-image-resizer' )
 	);
 

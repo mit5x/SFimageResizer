@@ -22,7 +22,7 @@ define( 'SFIR_TEST_BASE_URL', $base_url );
 $user      = getenv( 'SFIR_ADMIN_USER' ) ? getenv( 'SFIR_ADMIN_USER' ) : 'admin';
 $password  = getenv( 'SFIR_ADMIN_PASS' ) ? getenv( 'SFIR_ADMIN_PASS' ) : 'admin123';
 define( 'SFIR_TEST_COOKIES', tempnam( sys_get_temp_dir(), 'sfir-cookies-' ) );
-$page_url  = $base_url . '/wp-admin/options-general.php?page=sf-image-resizer';
+$page_url  = $base_url . '/wp-admin/admin.php?page=sf-image-resizer';
 $check_url = $page_url . '&tab=check';
 $docs_url  = $page_url . '&tab=documentation';
 $post_url  = $base_url . '/wp-admin/admin-post.php';
@@ -233,7 +233,16 @@ $probe_source = SFIR_Diagnostics::ensure_probe_image();
 SFIR_TestRunner::check( '' !== $probe_source && is_file( $probe_source ), 'the probe image exists', (string) $probe_source );
 
 $probe_size = getimagesize( $probe_source );
-SFIR_TestRunner::check( is_array( $probe_size ) && 16 === $probe_size[0] && 16 === $probe_size[1], 'the probe image is a 16x16 PNG', wp_json_encode( $probe_size ) );
+SFIR_TestRunner::check(
+	is_array( $probe_size ) && 1280 === $probe_size[0] && 1280 === $probe_size[1],
+	'the probe image is the 1280x1280 PNG shipped with the plugin',
+	wp_json_encode( $probe_size )
+);
+SFIR_TestRunner::equals(
+	filesize( WP_PLUGIN_DIR . '/sf-image-resizer/' . SFIR_Diagnostics::PROBE_SOURCE ),
+	filesize( $probe_source ),
+	'it is a copy of the shipped file, byte for byte'
+);
 
 // A normal front end generation has to set the confirmation on its own.
 $traffic = sfir_fetch( sf_img( sfir_path_to_url( $fixtures['jpeg'] ), 'w=277&f=jpg' ) );
@@ -283,7 +292,7 @@ SFIR_Diagnostics::reset();
 
 $page = sfir_admin_request( $check_url );
 
-SFIR_TestRunner::check( false !== strpos( $page['body'], 'Not confirmed on this server.' ), 'without a confirmation the page says so plainly' );
+SFIR_TestRunner::check( false !== strpos( $page['body'], 'Checking' ), 'without a confirmation the page says the check is running' );
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'Neither check has answered yet' ), 'the wording avoids claiming a fault' );
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'location ^~' ), 'the nginx snippet is offered' );
 SFIR_TestRunner::check( false !== strpos( $page['body'], 'class="sfir-hints"' ), 'the nginx snippet sits in a collapsible block' );
@@ -291,14 +300,14 @@ SFIR_TestRunner::check( false !== strpos( $page['body'], 'class="sfir-hints"' ),
 $probe_urls = array();
 
 for ( $i = 0; $i < 2; $i++ ) {
-	$settings = sfir_admin_settings( sfir_admin_request( $check_url )['body'] );
+	$found = sfir_probe_urls( sfir_admin_request( $check_url )['body'] );
 
-	if ( ! empty( $settings['probeUrl'] ) ) {
-		$probe_urls[] = $settings['probeUrl'];
+	if ( ! empty( $found[ SFIR_Diagnostics::CHECK_REQUEST ] ) ) {
+		$probe_urls[] = $found[ SFIR_Diagnostics::CHECK_REQUEST ];
 	}
 }
 
-SFIR_TestRunner::equals( 2, count( $probe_urls ), 'the page hands a probe URL to the browser' );
+SFIR_TestRunner::equals( 2, count( $probe_urls ), 'the page puts a probe image in the markup' );
 SFIR_TestRunner::check(
 	2 === count( $probe_urls ) && $probe_urls[0] !== $probe_urls[1],
 	'each render asks for a different size, so the cache always misses',
@@ -418,10 +427,21 @@ $confirm = sfir_admin_request(
 SFIR_TestRunner::equals( 200, $confirm['status'], 'a signed confirmation is accepted' );
 sfir_forget_options( SFIR_Diagnostics::CONFIRMED_OPTION );
 SFIR_TestRunner::check( SFIR_Diagnostics::get_confirmed_at() > 0, 'the signed confirmation is stored' );
-SFIR_TestRunner::equals(
-	0,
-	count( (array) glob( SFIR_Diagnostics::get_probe_cache_dir() . '/*.webp' ) ) + count( (array) glob( SFIR_Diagnostics::get_probe_cache_dir() . '/*.jpg' ) ),
-	'the probe cache files were cleaned up'
+// The render check leaves its own copy behind on purpose — the browser has
+// still to load it — but copies must not pile up across visits.
+for ( $i = 0; $i < 3; $i++ ) {
+	sfir_admin_request( $check_url );
+}
+
+clearstatcache();
+
+$probe_leftovers = count( (array) glob( SFIR_Diagnostics::get_probe_cache_dir() . '/*.webp' ) )
+	+ count( (array) glob( SFIR_Diagnostics::get_probe_cache_dir() . '/*.jpg' ) );
+
+SFIR_TestRunner::check(
+	$probe_leftovers <= 1,
+	'probe copies do not accumulate across visits',
+	(string) $probe_leftovers
 );
 
 /* --------------------------------------------------------------------------
@@ -487,12 +507,14 @@ SFIR_TestRunner::check(
 	false !== strpos( $split['body'], 'That is not a fault' ),
 	'the verdict explains that this server is simply of the other kind'
 );
+$split_probes = sfir_probe_urls( $split['body'] );
+
 SFIR_TestRunner::check(
-	empty( sfir_admin_settings( $split['body'] )['renderUrl'] ),
-	'no render probe is handed out once that one is confirmed'
+	! empty( $split_probes[ SFIR_Diagnostics::CHECK_RENDER ] ),
+	'the confirmed check still shows its image, so the answer can be seen'
 );
 SFIR_TestRunner::check(
-	! empty( sfir_admin_settings( $split['body'] )['probeUrl'] ),
+	! empty( $split_probes[ SFIR_Diagnostics::CHECK_REQUEST ] ),
 	'the unanswered check is still being retried'
 );
 
@@ -738,6 +760,109 @@ SFIR_TestRunner::check( false === strpos( $docs_page['body'], 'Cached files' ), 
 
 $unknown = sfir_admin_request( $page_url . '&tab=nonsense' );
 SFIR_TestRunner::check( false !== strpos( $unknown['body'], 'Cached files' ), 'an unknown tab falls back to the cache tab' );
+
+/* --------------------------------------------------------------------------
+ * The settings tab.
+ * ----------------------------------------------------------------------- */
+
+SFIR_TestRunner::group( '1.5.0 settings tab' );
+
+$settings_url = $page_url . '&tab=settings';
+
+delete_option( SFIR_Settings::BIG_IMAGE_OPTION );
+sfir_forget_options( SFIR_Settings::BIG_IMAGE_OPTION );
+
+$settings_page = sfir_admin_request( $settings_url );
+
+SFIR_TestRunner::equals( 200, $settings_page['status'], 'the settings tab loads' );
+SFIR_TestRunner::check( false !== strpos( $settings_page['body'], 'Keep uploaded images at their original size' ), 'it carries the upload switch' );
+SFIR_TestRunner::check( false !== strpos( $settings_page['body'], 'name="sfir_keep_full_size_uploads"' ), 'the switch is a checkbox' );
+SFIR_TestRunner::check( false === strpos( $settings_page['body'], 'Cached files' ), 'it does not carry the statistics' );
+SFIR_TestRunner::check( false === strpos( $settings_page['body'], 'Configuration check' ), 'it does not carry the check' );
+SFIR_TestRunner::check(
+	false !== strpos( $settings_page['body'], 'WordPress shrinks uploads larger than 2560 pixels' ),
+	'it reports the threshold WordPress applies right now'
+);
+
+// The tab sits between Cache and Check and log.
+SFIR_TestRunner::check(
+	(bool) preg_match( '#tab=settings[^>]*>\s*Settings.*?tab=check[^>]*>\s*Check and log#s', $settings_page['body'] ),
+	'the tab is placed after Cache and before Check and log'
+);
+
+$settings_nonce = sfir_form_nonce( $settings_page['body'], 'sfir_settings' );
+
+SFIR_TestRunner::check( '' !== $settings_nonce, 'the settings form carries a nonce' );
+
+// An unsigned POST changes nothing.
+$unsigned_settings = sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'                       => 'sfir_settings',
+				'sfir_keep_full_size_uploads'  => '1',
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Settings::BIG_IMAGE_OPTION );
+
+SFIR_TestRunner::equals( 403, $unsigned_settings['status'], 'an unsigned settings POST is refused with 403' );
+SFIR_TestRunner::check( ! SFIR_Settings::keeps_full_size_uploads(), 'it did not change the setting' );
+
+// A signed one does.
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'                      => 'sfir_settings',
+				'_wpnonce'                    => $settings_nonce,
+				'sfir_keep_full_size_uploads' => '1',
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Settings::BIG_IMAGE_OPTION );
+
+SFIR_TestRunner::check( SFIR_Settings::keeps_full_size_uploads(), 'a signed POST turns the switch on' );
+
+$saved_settings = sfir_admin_request( $settings_url );
+
+SFIR_TestRunner::check( false !== strpos( $saved_settings['body'], 'The settings have been saved.' ), 'a notice confirms the change' );
+SFIR_TestRunner::check(
+	(bool) preg_match( '#name="sfir_keep_full_size_uploads"[^>]*checked#', $saved_settings['body'] ),
+	'the box comes back ticked'
+);
+SFIR_TestRunner::check(
+	false !== strpos( $saved_settings['body'], 'uploads are kept at their original size' ),
+	'the screen reports that nothing is shrunk any more'
+);
+
+// An unticked box turns it back off, which a checkbox only expresses by absence.
+$off_nonce = sfir_form_nonce( $saved_settings['body'], 'sfir_settings' );
+
+sfir_admin_request(
+	$post_url,
+	array(
+		CURLOPT_POST       => true,
+		CURLOPT_POSTFIELDS => http_build_query(
+			array(
+				'action'   => 'sfir_settings',
+				'_wpnonce' => $off_nonce,
+			)
+		),
+	)
+);
+
+sfir_forget_options( SFIR_Settings::BIG_IMAGE_OPTION );
+
+SFIR_TestRunner::check( ! SFIR_Settings::keeps_full_size_uploads(), 'submitting without the box turns it back off' );
 
 /* --------------------------------------------------------------------------
  * The generation mode.
@@ -986,12 +1111,41 @@ $plugins_page = sfir_admin_request( $base_url . '/wp-admin/plugins.php' );
 
 SFIR_TestRunner::equals( 200, $plugins_page['status'], 'the plugins screen loads' );
 SFIR_TestRunner::check(
-	false !== strpos( $plugins_page['body'], 'options-general.php?page=sf-image-resizer' ),
+	false !== strpos( $plugins_page['body'], 'admin.php?page=sf-image-resizer' ),
 	'the plugin row links to the settings screen'
 );
 SFIR_TestRunner::check(
 	false !== strpos( $plugins_page['body'], 'SF Image resizer' ),
 	'the plugin is listed under its new display name'
+);
+
+SFIR_TestRunner::group( '1.5.0 main menu' );
+
+$dashboard = sfir_admin_request( $base_url . '/wp-admin/index.php' );
+
+SFIR_TestRunner::check(
+	false !== strpos( $dashboard['body'], 'toplevel_page_sf-image-resizer' ),
+	'the plugin has its own entry in the main admin menu'
+);
+SFIR_TestRunner::check(
+	false !== strpos( $dashboard['body'], 'dashicons-format-image' ),
+	'the menu entry carries an icon'
+);
+SFIR_TestRunner::check(
+	false === strpos( $dashboard['body'], 'options-general.php?page=sf-image-resizer' ),
+	'it is no longer buried under Settings'
+);
+
+// WordPress resolves a top-level page by its slug whatever file it is asked
+// for, so the address the screen used to live at keeps working and nobody's
+// bookmark breaks. Every link the plugin itself prints points at the new one.
+$old_url = sfir_admin_request( $base_url . '/wp-admin/options-general.php?page=sf-image-resizer' );
+
+SFIR_TestRunner::equals( 200, $old_url['status'], 'the address the screen used to live at still works' );
+SFIR_TestRunner::check( false !== strpos( $old_url['body'], 'Cached files' ), 'and it still renders the screen' );
+SFIR_TestRunner::check(
+	false === strpos( $page['body'], 'options-general.php?page=sf-image-resizer' ),
+	'but the screen itself never links back to it'
 );
 
 /* --------------------------------------------------------------------------
